@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Aster Project Operations dashboard and roadmap">
+  <title>Aster | Project Operations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-pending">
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+    <div class="login-visual" aria-hidden="true">
+      <div class="login-brand"><span class="brand-mark"><span></span><span></span><span></span></span><span><strong>Platforms Branch</strong><small>Digital Design and Delivery,<br>Technology and Innovation</small></span></div>
+      <div class="login-visual-copy"><p>PROJECT OPERATIONS</p><h2>Plan with clarity.<br>Deliver with confidence.</h2><span>One portfolio view for projects, roadmaps, teams, resources, and executive reporting.</span></div>
+      <div class="login-grid-art"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="login-panel">
+      <form class="login-form" id="loginForm">
+        <div class="login-mobile-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><strong>Platforms Branch</strong></div>
+        <p class="eyebrow">Secure workspace</p>
+        <h1 id="loginTitle">Welcome back</h1>
+        <p class="login-intro">Sign in to access portfolio operations.</p>
+        <label>Email address<div class="login-input"><i data-lucide="mail"></i><input name="email" type="email" autocomplete="username" required placeholder="name@organization.com"></div></label>
+        <label>Password<div class="login-input"><i data-lucide="lock-keyhole"></i><input name="password" type="password" minlength="4" maxlength="4" inputmode="numeric" autocomplete="current-password" required placeholder="Enter your password"><button id="togglePassword" type="button" aria-label="Show password"><i data-lucide="eye"></i></button></div></label>
+        <div class="login-options"><label><input name="remember" type="checkbox"><span>Keep me signed in</span></label><button id="forgotPassword" type="button">Forgot password?</button></div>
+        <p class="login-error" id="loginError" role="alert" aria-live="polite"></p>
+        <button class="login-submit" type="submit"><span>Sign in</span><i data-lucide="arrow-right"></i></button>
+        <p class="login-security"><i data-lucide="shield-check"></i>Protected workspace access</p>
+      </form>
+    </div>
+  </section>
+
+  <div class="app-shell" id="appShell" aria-hidden="true">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="brand-copy"><strong>Platforms Branch</strong><small>Digital Design and Delivery,<br>Technology and Innovation</small></span>
+      </div>
+
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <p class="nav-label">Delivery</p>
+        <button class="nav-item active" data-view="projects" type="button">
+          <i data-lucide="layout-dashboard"></i><span class="nav-copy"><strong>Projects</strong><small>Execution and delivery</small></span>
+        </button>
+        <p class="nav-label">Strategy</p>
+        <button class="nav-item" data-view="roadmap" type="button">
+          <i data-lucide="route"></i><span class="nav-copy"><strong>Roadmap</strong><small>Direction and timing</small></span>
+        </button>
+        <p class="nav-label">Intelligence</p>
+        <button class="nav-item" data-view="reports" type="button">
+          <i data-lucide="chart-no-axes-combined"></i><span class="nav-copy"><strong>Reports</strong><small>Performance and risk</small></span>
+        </button>
+
+        <p class="nav-label">Manage</p>
+        <button class="nav-item" data-view="team" type="button">
+          <i data-lucide="users"></i><span>Team</span>
+        </button>
+        <button class="nav-item" data-view="resources" type="button">
+          <i data-lucide="boxes"></i><span>Resources</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="nav-item template-library-nav" id="openTemplateLibrary" type="button"><i data-lucide="file-spreadsheet"></i><span>Template</span></button>
+        <button class="nav-item upload-template-nav" id="openTemplateUpload" type="button"><i data-lucide="upload"></i><span>Upload Template</span></button>
+        <button class="nav-item" type="button"><i data-lucide="circle-help"></i><span>Help center</span></button>
+        <button class="user-card" id="userMenuButton" type="button" aria-label="Open user menu" aria-expanded="false">
+          <span class="avatar avatar-photo" id="userInitials">ER</span>
+          <span><strong id="userDisplayName">Edson R.</strong><small id="userDisplayRole">Program Manager</small></span>
+          <i data-lucide="chevrons-up-down"></i>
+        </button>
+        <div class="user-menu" id="userMenu" hidden>
+          <div><strong id="menuUserName">Edson R.</strong><small id="menuUserEmail">edson@platformsbranch.gov</small></div>
+          <button id="logoutButton" type="button"><i data-lucide="log-out"></i>Log off</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Open navigation">
+          <i data-lucide="menu"></i>
+        </button>
+        <div class="workspace-context" id="workspaceContext">
+          <span class="workspace-context-icon"><i data-lucide="layout-dashboard"></i></span>
+          <span><small>Delivery workspace</small><strong>Projects</strong></span>
+        </div>
+        <div class="command-search">
+          <i data-lucide="search"></i>
+          <input id="globalSearch" type="search" placeholder="Search projects, owners, teams..." aria-label="Search projects">
+          <kbd>/</kbd>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="notificationButton" type="button" aria-label="Notifications">
+            <i data-lucide="bell"></i><span class="notification-dot"></span>
+          </button>
+          <button class="primary-button" id="openProjectModal" type="button" aria-label="New project">
+            <i data-lucide="plus"></i><span>New project</span>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="view active" id="projectsView" aria-labelledby="projectsTitle">
+          <div class="page-heading project-heading">
+            <div>
+              <div class="view-identity"><span class="view-identity-icon"><i data-lucide="briefcase-business"></i></span><span><strong>Projects</strong><small>Execution workspace</small></span></div>
+              <h1 id="projectsTitle">Project command center</h1>
+              <p class="heading-copy">Track delivery, unblock teams, and keep strategic work moving.</p>
+            </div>
+            <div class="heading-meta">
+              <label class="fiscal-selector"><span>Fiscal year</span><select id="projectFiscalYear" aria-label="Project fiscal year"></select></label>
+              <span class="live-pill"><span></span>Live portfolio</span>
+              <span id="currentDate"></span>
+            </div>
+          </div>
+
+          <div class="metrics-grid" id="metricsGrid"></div>
+
+          <div class="insights-grid">
+            <article class="panel health-panel">
+              <div class="panel-heading">
+                <div><span class="section-kicker">Portfolio health</span><h2>Delivery confidence</h2></div>
+                <button class="icon-button subtle" type="button" aria-label="More portfolio health options"><i data-lucide="ellipsis"></i></button>
+              </div>
+              <div class="health-content">
+                <div class="health-ring" id="healthRing"><div><strong id="healthScore">0%</strong><span>on track</span></div></div>
+                <div class="health-legend" id="healthLegend"></div>
+              </div>
+              <div class="trend-row">
+                <span><i data-lucide="trending-up"></i> <strong>8% stronger</strong> than last month</span>
+                <div class="spark-bars" aria-label="Six month health trend"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
+            </article>
+
+            <article class="panel focus-panel">
+              <div class="panel-heading">
+                <div><span class="section-kicker">Needs attention</span><h2>Priority actions</h2></div>
+                <span class="count-badge" id="attentionCount">0</span>
+              </div>
+              <div class="attention-list" id="attentionList"></div>
+            </article>
+
+            <article class="panel capacity-panel">
+              <div class="panel-heading">
+                <div><span class="section-kicker">Team capacity</span><h2>Allocation this cycle</h2></div>
+                <span class="capacity-value">82%</span>
+              </div>
+              <div class="capacity-chart" id="capacityChart"></div>
+              <div class="capacity-note"><i data-lucide="info"></i><span>Design is approaching its allocation threshold.</span></div>
+            </article>
+          </div>
+
+          <section class="projects-section" aria-labelledby="allProjectsTitle">
+            <div class="section-heading-row">
+              <div><span class="section-kicker">Workspace</span><h2 id="allProjectsTitle">All projects <span id="projectCount"></span></h2></div>
+              <div class="section-actions">
+                <div class="filter-group">
+                  <select id="statusFilter" aria-label="Filter by status">
+                    <option value="all">All statuses</option>
+                    <option value="On track">On track</option>
+                    <option value="At risk">At risk</option>
+                    <option value="Off track">Off track</option>
+                    <option value="Planned">Planned</option>
+                  </select>
+                  <select id="teamFilter" aria-label="Filter by team"><option value="all">All teams</option></select>
+                  <select id="unitFilter" aria-label="Filter by unit"><option value="all">All units</option></select>
+                </div>
+                <div class="segmented-control" aria-label="Project layout">
+                  <button class="active" data-layout="table" type="button" aria-label="Table view"><i data-lucide="list"></i></button>
+                  <button data-layout="cards" type="button" aria-label="Card view"><i data-lucide="layout-grid"></i></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="project-table-wrap" id="tableLayout">
+              <table class="project-table">
+                <thead><tr><th>Project</th><th>Status</th><th>Progress</th><th>Owner</th><th>Due date</th><th>Risk</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <tbody id="projectTableBody"></tbody>
+              </table>
+            </div>
+            <div class="project-card-grid hidden" id="cardLayout"></div>
+            <div class="empty-state hidden" id="emptyState">
+              <i data-lucide="search-x"></i><h3>No projects found</h3><p>Try changing your search or filters.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="view project-detail-view" id="projectDetailView" aria-labelledby="projectDetailTitle">
+          <div id="projectDetailContent"></div>
+        </section>
+
+        <section class="view" id="roadmapView" aria-labelledby="roadmapTitle">
+          <div class="page-heading roadmap-heading roadmap-masthead">
+            <div>
+              <div class="view-identity roadmap-identity"><span class="view-identity-icon"><i data-lucide="route"></i></span><span><strong>Roadmap</strong><small>Strategy workspace</small></span></div>
+              <h1 id="roadmapTitle">Portfolio roadmap</h1>
+              <p class="heading-copy">Shape strategic direction, sequence initiatives, and coordinate outcomes over time.</p>
+            </div>
+            <div class="heading-actions">
+              <span class="roadmap-fy-badge"><small>Planning horizon</small><strong id="roadmapFiscalLabel">FY27</strong></span>
+              <button class="secondary-button" id="todayButton" type="button"><i data-lucide="locate-fixed"></i>Today</button>
+              <button class="primary-button" id="roadmapAddProject" type="button"><i data-lucide="plus"></i>Add initiative</button>
+            </div>
+          </div>
+
+          <div class="roadmap-summary" id="roadmapSummary"></div>
+
+          <section class="roadmap-panel">
+            <div class="roadmap-toolbar">
+              <div class="roadmap-filters">
+                <div class="segmented-text" id="roadmapScale">
+                  <button data-scale="month" type="button" aria-pressed="false">Month</button>
+                  <button class="active" data-scale="quarter" type="button" aria-pressed="true">Quarter</button>
+                  <button data-scale="year" type="button" aria-pressed="false">Year</button>
+                </div>
+                <span class="roadmap-period-label" id="roadmapPeriodLabel"></span>
+                <select id="roadmapFiscalYear" aria-label="Roadmap fiscal year"></select>
+                <select id="roadmapTeamFilter" aria-label="Filter roadmap by team"><option value="all">All teams</option></select>
+              </div>
+              <div class="roadmap-legend"><span><i class="legend-dot active-dot"></i>Active</span><span><i class="legend-dot planned-dot"></i>Planned</span><span><i class="milestone-shape"></i>Milestone</span></div>
+            </div>
+            <div class="roadmap-scroll" id="roadmapScroll">
+              <div class="timeline" id="timeline"></div>
+            </div>
+          </section>
+
+          <div class="roadmap-bottom-grid">
+            <article class="panel milestone-panel">
+              <div class="panel-heading"><div><span class="section-kicker" id="roadmapMilestoneWindow">Current period</span><h2>Upcoming milestones</h2></div><i data-lucide="flag"></i></div>
+              <div id="milestoneList" class="milestone-list"></div>
+            </article>
+            <article class="panel dependency-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Cross-team</span><h2>Key dependencies</h2></div><span class="count-badge">3</span></div>
+              <div class="dependency-flow">
+                <div><span class="project-icon coral">WL</span><strong>Web launch</strong></div><i data-lucide="arrow-right"></i><div><span class="project-icon teal">ID</span><strong>Identity</strong></div>
+              </div>
+              <div class="dependency-flow">
+                <div><span class="project-icon amber">MP</span><strong>Mobile app</strong></div><i data-lucide="arrow-right"></i><div><span class="project-icon blue">DP</span><strong>Data platform</strong></div>
+              </div>
+              <p class="dependency-note"><i data-lucide="circle-check"></i>All critical dependencies have owners.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="view reports-view" id="reportsView" aria-labelledby="reportsTitle">
+          <div class="page-heading report-heading">
+            <div>
+              <p class="eyebrow">Portfolio intelligence</p>
+              <h1 id="reportsTitle">Executive reporting</h1>
+              <p class="heading-copy">Governance-ready performance, risk, schedule, and roadmap reporting.</p>
+            </div>
+            <div class="heading-actions report-actions">
+              <button class="secondary-button" id="printReport" type="button"><i data-lucide="printer"></i>Print</button>
+              <button class="secondary-button" id="exportExcel" type="button"><i data-lucide="file-spreadsheet"></i>Excel</button>
+              <button class="secondary-button" id="exportPdf" type="button"><i data-lucide="file-text"></i>PDF</button>
+              <button class="primary-button" id="exportPptx" type="button"><i data-lucide="presentation"></i>PowerPoint</button>
+            </div>
+          </div>
+
+          <section class="report-control-bar" aria-label="Report controls">
+            <div class="report-scope"><span class="report-live-dot"></span><div><strong>Portfolio status report</strong><small id="reportAsOf">As of September 10, 2026</small></div></div>
+            <div class="report-filters">
+              <label><span>Reporting period</span><select id="reportPeriod"><option value="quarter">Current quarter</option><option value="month">Current month</option><option value="year">Fiscal year</option></select></label>
+              <label><span>Fiscal year</span><select id="reportFiscalYear" aria-label="Report fiscal year"></select></label>
+              <label><span>Team</span><select id="reportTeam"><option value="all">All teams</option></select></label>
+              <label><span>Status</span><select id="reportStatus"><option value="all">All statuses</option><option>On track</option><option>At risk</option><option>Off track</option><option>Planned</option></select></label>
+            </div>
+          </section>
+
+          <div class="report-kpi-grid" id="reportKpis"></div>
+
+          <section class="panel report-high-level" aria-labelledby="highLevelTitle">
+            <div class="panel-heading"><div><span class="section-kicker">Executive narrative</span><h2 id="highLevelTitle">High-Level Details</h2></div><span class="report-standard">Projects + Roadmap</span></div>
+            <div class="high-level-grid" id="reportHighLevelDetails"></div>
+          </section>
+
+          <div class="report-analysis-grid">
+            <article class="panel report-chart-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Portfolio health</span><h2>Status distribution</h2></div><span class="report-standard">RAG status</span></div>
+              <div id="reportStatusChart"></div>
+            </article>
+            <article class="panel report-chart-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Risk governance</span><h2>Exposure matrix</h2></div><span class="report-standard">Priority x risk</span></div>
+              <div id="reportRiskMatrix"></div>
+            </article>
+          </div>
+
+          <div class="report-analysis-grid report-secondary-grid">
+            <article class="panel report-chart-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Delivery performance</span><h2>Team health</h2></div><span class="report-standard">Progress and confidence</span></div>
+              <div class="team-report" id="teamReport"></div>
+            </article>
+            <article class="panel report-chart-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Roadmap forecast</span><h2>Upcoming milestones</h2></div><span class="report-standard">Next 120 days</span></div>
+              <div class="forecast-list" id="reportMilestones"></div>
+            </article>
+          </div>
+
+          <section class="report-register" aria-labelledby="reportRegisterTitle">
+            <div class="section-heading-row"><div><span class="section-kicker">Control register</span><h2 id="reportRegisterTitle">Project performance detail <span id="reportProjectCount"></span></h2></div><span class="report-note"><i data-lucide="shield-check"></i>Source: live portfolio data</span></div>
+            <div class="project-table-wrap"><table class="project-table report-table"><thead><tr><th>Project</th><th>RAG status</th><th>Progress</th><th>Approx. cost</th><th>Schedule variance</th><th>Risk</th><th>Next milestone</th><th>Forecast</th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
+          </section>
+        </section>
+
+        <section class="view teams-view" id="teamsView" aria-labelledby="teamsTitle">
+          <div class="page-heading team-heading">
+            <div>
+              <div class="view-identity team-identity"><span class="view-identity-icon"><i data-lucide="users"></i></span><span><strong>Teams</strong><small>People and capacity workspace</small></span></div>
+              <h1 id="teamsTitle">Delivery teams</h1>
+              <p class="heading-copy">Understand ownership, capacity, and portfolio allocation across Team 1 through Team 10.</p>
+            </div>
+            <div class="workspace-export-actions"><span class="team-directory-badge"><strong id="teamTotalBadge">10</strong><small>Operating teams</small></span><button class="secondary-button" id="exportTeamsExcel" type="button"><i data-lucide="file-spreadsheet"></i>Excel</button><button class="secondary-button" id="exportTeamsPdf" type="button"><i data-lucide="file-text"></i>PDF</button></div>
+          </div>
+
+          <div class="team-metrics" id="teamMetrics"></div>
+
+          <section class="team-directory" aria-labelledby="teamDirectoryTitle">
+            <div class="section-heading-row">
+              <div><span class="section-kicker">Organization</span><h2 id="teamDirectoryTitle">Team directory <span id="teamDirectoryCount"></span></h2></div>
+              <div class="team-directory-filters">
+                <div class="team-search"><i data-lucide="search"></i><input id="teamSearch" type="search" placeholder="Search teams or leads..." aria-label="Search teams"></div>
+                <select id="teamHealthFilter" aria-label="Filter team capacity"><option value="all">All capacity levels</option><option value="available">Available</option><option value="balanced">Balanced</option><option value="near-capacity">Near capacity</option></select>
+              </div>
+            </div>
+            <div class="team-grid" id="teamGrid"></div>
+            <div class="empty-state hidden" id="teamEmptyState"><i data-lucide="users"></i><h3>No teams found</h3><p>Try changing the search or capacity filter.</p></div>
+          </section>
+        </section>
+
+        <section class="view resources-view" id="resourcesView" aria-labelledby="resourcesTitle">
+          <div class="page-heading resource-heading">
+            <div>
+              <div class="view-identity resource-identity"><span class="view-identity-icon"><i data-lucide="boxes"></i></span><span><strong>Resources</strong><small>Roles and staffing workspace</small></span></div>
+              <h1 id="resourcesTitle">Resource directory</h1>
+              <p class="heading-copy">Manage standard delivery roles and keep resource assignments aligned with Team membership.</p>
+            </div>
+            <div class="workspace-export-actions"><span class="team-directory-badge"><strong id="resourceTotalBadge">0</strong><small>Assigned resources</small></span><button class="secondary-button" id="exportResourcesExcel" type="button"><i data-lucide="file-spreadsheet"></i>Excel</button><button class="secondary-button" id="exportResourcesPdf" type="button"><i data-lucide="file-text"></i>PDF</button></div>
+          </div>
+          <div class="team-metrics" id="resourceMetrics"></div>
+          <section class="team-directory" aria-labelledby="resourceDirectoryTitle">
+            <div class="section-heading-row">
+              <div><span class="section-kicker">Workforce</span><h2 id="resourceDirectoryTitle">Role assignments <span id="resourceDirectoryCount"></span></h2></div>
+              <div class="team-directory-filters">
+                <div class="team-search"><i data-lucide="search"></i><input id="resourceSearch" type="search" placeholder="Search people or roles..." aria-label="Search resources"></div>
+                <select id="resourceRoleFilter" aria-label="Filter resource role"><option value="all">All resource roles</option></select>
+                <select id="resourceTeamFilter" aria-label="Filter resource team"><option value="all">All teams</option></select>
+              </div>
+            </div>
+            <div class="resource-grid" id="resourceGrid"></div>
+            <div class="empty-state hidden" id="resourceEmptyState"><i data-lucide="user-round-search"></i><h3>No resources found</h3><p>Try changing the search or role filters.</p></div>
+          </section>
+        </section>
+
+        <section class="view placeholder-view" id="placeholderView">
+          <div class="placeholder-inner"><i data-lucide="construction"></i><p class="eyebrow">Workspace module</p><h1 id="placeholderTitle">Coming soon</h1><p>This module is being prepared for the next workspace release.</p><button class="secondary-button" data-view="projects" type="button"><i data-lucide="arrow-left"></i>Back to projects</button></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="detail-drawer" id="detailDrawer" aria-hidden="true" aria-labelledby="drawerTitle">
+    <div id="drawerContent"></div>
+  </aside>
+
+  <dialog id="projectModal" class="project-modal">
+    <form method="dialog" id="projectForm">
+      <div class="modal-header">
+        <div><span class="section-kicker" id="projectModalKicker">Portfolio intake</span><h2 id="projectModalTitle">Create a new project</h2></div>
+        <button class="icon-button" id="closeProjectModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form-grid">
+        <div class="form-section-title full-field"><span>01</span><div><strong>Project identity</strong><small>Information shown across portfolio views</small></div></div>
+        <label>Project name<input name="name" required maxlength="60" placeholder="e.g. Partner portal launch"></label>
+        <label>Unit<select name="unit" required><option>Identity and Access Management</option><option>Alberta Wallet and Credentials</option><option>Platform Operations</option><option>Alberta Payments</option><option>Web Services</option><option>CRA Income and Data Verification Services</option></select></label>
+        <label>Owner<input name="owner" required maxlength="40" placeholder="Full name"></label>
+        <label class="full-field">Objective<textarea name="objective" rows="3" required maxlength="180" placeholder="What measurable outcome will this project deliver?"></textarea></label>
+        <div class="form-section-title full-field"><span>02</span><div><strong>Delivery controls</strong><small>Status, confidence, and reporting baseline</small></div></div>
+        <label>Start date<input name="start" type="date" required></label>
+        <label>Target date<input name="end" type="date" required></label>
+        <label>Status<select name="status"><option>Planned</option><option>On track</option><option>At risk</option><option>Off track</option></select></label>
+        <label>Progress (%)<input name="progress" type="number" min="0" max="100" value="5" required></label>
+        <label>Priority<select name="priority"><option>High</option><option selected>Medium</option><option>Low</option></select></label>
+        <label>Risk level<select name="risk"><option>Low</option><option selected>Medium</option><option>High</option></select></label>
+        <label>Approx. Cost in dollars<input name="approxCost" type="number" min="0" step="1000" required placeholder="e.g. 250000"></label>
+        <label>Schedule variance (days)<input name="scheduleVariance" type="number" min="-365" max="365" value="0" required></label>
+        <label>Contributors<input name="contributors" maxlength="160" placeholder="Names separated by commas"></label>
+        <div class="form-section-title full-field"><span>03</span><div><strong>Roadmap milestone</strong><small>Next major gate shown on the portfolio timeline</small></div></div>
+        <label>Milestone name<input name="milestone" required maxlength="50" placeholder="e.g. Beta release"></label>
+        <label>Milestone date<input name="milestoneDate" type="date" required></label>
+      </div>
+      <div class="modal-footer"><button class="text-button" id="cancelProjectModal" type="button">Cancel</button><button class="primary-button" id="saveProjectButton" type="submit"><i data-lucide="plus"></i><span>Create project</span></button></div>
+    </form>
+  </dialog>
+
+  <dialog id="teamModal" class="project-modal team-modal">
+    <form method="dialog" id="teamForm">
+      <div class="modal-header">
+        <div><span class="section-kicker" id="teamModalKicker">Organization intake</span><h2 id="teamModalTitle">Create a new team</h2><p class="modal-description" id="teamModalDescription">Define accountable roles for a cross-functional delivery team.</p></div>
+        <button class="icon-button" id="closeTeamModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form-grid team-form-grid">
+        <div class="form-section-title full-field"><span>01</span><div><strong>Team identity</strong><small>Name the operating unit</small></div></div>
+        <label class="full-field">Team Name<input name="teamName" required maxlength="60" placeholder="e.g. Team 11"></label>
+        <div class="form-section-title full-field"><span>02</span><div><strong>Accountable leadership</strong><small>Business, solution, and executive ownership</small></div></div>
+        <label>Product Owner<input name="productOwner" maxlength="60" placeholder="Optional"></label>
+        <label>Solution Sponsor<input name="solutionSponsor" maxlength="60" placeholder="Optional"></label>
+        <label class="full-field">Executive Sponsor<input name="executiveSponsor" maxlength="60" placeholder="Optional"></label>
+        <div class="form-section-title full-field"><span>03</span><div><strong>Business stakeholders</strong><small>Stakeholder representation and business sponsorship</small></div></div>
+        <label>Stakeholder 1<input name="stakeholder1" maxlength="60" placeholder="Optional"></label>
+        <label>Stakeholder 2<input name="stakeholder2" maxlength="60" placeholder="Optional"></label>
+        <label>Business Sponsor<input name="businessSponsor" maxlength="60" placeholder="Optional"></label>
+        <label>Business Executive<input name="businessExecutive" maxlength="60" placeholder="Optional"></label>
+        <div class="form-section-title full-field"><span>04</span><div><strong>Delivery team</strong><small>Core technical and experience roles</small></div></div>
+        <label>Developer<input name="developer" maxlength="60" placeholder="Optional"></label>
+        <label>Architect<input name="architect" maxlength="60" placeholder="Optional"></label>
+        <label>Dev Lead<input name="devLead" maxlength="60" placeholder="Optional"></label>
+        <label>Scrum Master<input name="scrumMaster" maxlength="60" placeholder="Optional"></label>
+        <label>Project Manager<input name="projectManager" maxlength="60" placeholder="Optional"></label>
+        <label>Business Analyst<input name="businessAnalyst" maxlength="60" placeholder="Optional"></label>
+        <label>Front End Designer<input name="frontEndDesigner" maxlength="60" placeholder="Optional"></label>
+        <label>Service Designer<input name="serviceDesigner" maxlength="60" placeholder="Optional"></label>
+        <label>QA<input name="qa" maxlength="60" placeholder="Optional"></label>
+      </div>
+      <div class="modal-footer"><button class="text-button" id="cancelTeamModal" type="button">Cancel</button><button class="primary-button" id="saveTeamButton" type="submit"><i data-lucide="user-round-plus"></i><span>Create team</span></button></div>
+    </form>
+  </dialog>
+
+  <dialog id="resourceModal" class="project-modal resource-modal">
+    <form method="dialog" id="resourceForm">
+      <div class="modal-header"><div><span class="section-kicker" id="resourceModalKicker">Resource intake</span><h2 id="resourceModalTitle">New resource</h2><p class="modal-description" id="resourceModalDescription">Assign a person to a standard role and synchronize the selected team.</p></div><button class="icon-button" id="closeResourceModal" type="button" aria-label="Close"><i data-lucide="x"></i></button></div>
+      <div class="form-grid">
+        <div class="form-section-title full-field"><span>01</span><div><strong>Resource assignment</strong><small>The team role will update when this resource is saved</small></div></div>
+        <label class="full-field">Resource Name<input name="resourceName" required maxlength="60" placeholder="Full name"></label>
+        <label>Resource Role<select name="resourceRole" required></select></label>
+        <label>Assigned Team<select name="assignedTeam" required></select></label>
+        <label>Allocation (%)<input name="allocation" type="number" min="0" max="100" value="100" required></label>
+        <label>Availability<select name="availability" required><option>Available</option><option selected>Allocated</option><option>Unavailable</option></select></label>
+      </div>
+      <div class="modal-footer"><button class="text-button" id="cancelResourceModal" type="button">Cancel</button><button class="primary-button" id="saveResourceButton" type="submit"><i data-lucide="user-round-plus"></i><span>Create resource</span></button></div>
+    </form>
+  </dialog>
+
+  <dialog id="deleteTeamModal" class="confirm-modal">
+    <div class="confirm-icon"><i data-lucide="trash-2"></i></div>
+    <h2>Delete <span id="deleteTeamName">team</span>?</h2>
+    <p id="deleteTeamImpact">This team will be permanently removed from the directory.</p>
+    <div class="confirm-notice"><i data-lucide="shield-check"></i><span>Assigned project records will remain in Projects and Roadmap.</span></div>
+    <div class="confirm-actions"><button class="secondary-button" id="cancelDeleteTeam" type="button">Cancel</button><button class="danger-button" id="confirmDeleteTeam" type="button"><i data-lucide="trash-2"></i>Delete team</button></div>
+  </dialog>
+
+  <dialog id="deleteResourceModal" class="confirm-modal">
+    <div class="confirm-icon"><i data-lucide="user-round-x"></i></div>
+    <h2>Delete <span id="deleteResourceName">resource</span>?</h2>
+    <p id="deleteResourceImpact">This resource assignment will be permanently removed.</p>
+    <div class="confirm-notice"><i data-lucide="shield-check"></i><span>The team and all project records will remain unchanged.</span></div>
+    <div class="confirm-actions"><button class="secondary-button" id="cancelDeleteResource" type="button">Cancel</button><button class="danger-button" id="confirmDeleteResource" type="button"><i data-lucide="trash-2"></i>Delete resource</button></div>
+  </dialog>
+
+  <dialog id="deleteProjectModal" class="confirm-modal">
+    <div class="confirm-icon"><i data-lucide="trash-2"></i></div>
+    <h2>Delete <span id="deleteProjectName">project</span>?</h2>
+    <p>This project will be permanently removed from Projects, Roadmap, and Reports.</p>
+    <div class="confirm-notice"><i data-lucide="users"></i><span>Team and resource records will remain; only this project allocation will be removed.</span></div>
+    <div class="confirm-actions"><button class="secondary-button" id="cancelDeleteProject" type="button">Cancel</button><button class="danger-button" id="confirmDeleteProject" type="button"><i data-lucide="trash-2"></i>Delete project</button></div>
+  </dialog>
+
+  <dialog id="templateLibraryModal" class="project-modal template-library-modal">
+    <div class="modal-header"><div><span class="section-kicker">Template library</span><h2>Project intake template</h2><p class="modal-description">Download the approved Excel workbook for structured project and roadmap intake.</p></div><button class="icon-button" id="closeTemplateLibrary" type="button" aria-label="Close"><i data-lucide="x"></i></button></div>
+    <div class="template-upload-body">
+      <section class="template-download-row"><span class="template-file-icon"><i data-lucide="file-spreadsheet"></i></span><span><strong>Project intake template</strong><small>Excel workbook · 16 aligned fields · dropdowns and date rules</small></span><button class="secondary-button" id="downloadProjectTemplate" type="button"><i data-lucide="download"></i>Download</button></section>
+      <div class="template-library-info"><div><span>3</span><small>Workbook sheets</small></div><div><span>16</span><small>Intake fields</small></div><div><span>.xlsx</span><small>File format</small></div></div>
+      <section class="template-field-section"><h3>Included project fields</h3><div class="template-field-list" id="templateFieldList"></div></section>
+      <div class="template-guidance"><i data-lucide="info"></i><span>Complete the blank <strong>Project Intake</strong> sheet. Enter Start Date and Target Date as <strong>MM/DD/YYYY</strong>, for example <strong>09/10/2026</strong>.</span></div>
+    </div>
+    <div class="modal-footer"><button class="secondary-button" id="closeTemplateLibraryFooter" type="button">Close</button><button class="primary-button" id="downloadProjectTemplateFooter" type="button"><i data-lucide="download"></i>Download Excel template</button></div>
+  </dialog>
+
+  <dialog id="templateUploadModal" class="project-modal template-upload-modal">
+    <div class="modal-header"><div><span class="section-kicker">Bulk project import</span><h2>Upload completed template</h2><p class="modal-description">Select a completed Project Intake workbook to validate and import.</p></div><button class="icon-button" id="closeTemplateUpload" type="button" aria-label="Close"><i data-lucide="x"></i></button></div>
+    <div class="template-upload-body">
+      <label class="template-drop-zone" id="templateDropZone"><input id="projectTemplateFile" type="file" accept=".xlsx,.xls" hidden><span><i data-lucide="upload-cloud"></i></span><strong>Choose a completed template</strong><small>Upload an Excel .xlsx or .xls file</small></label>
+      <div class="template-validation" id="templateValidation" aria-live="polite"><i data-lucide="info"></i><span>No file selected.</span></div>
+      <div class="template-preview hidden" id="templatePreview"><div><strong id="templateFileName"></strong><small id="templateImportSummary"></small></div><div class="template-preview-table"><table><thead><tr><th>Project</th><th>Unit</th><th>Team</th><th>Status</th></tr></thead><tbody id="templatePreviewBody"></tbody></table></div></div>
+    </div>
+    <div class="modal-footer"><button class="text-button" id="cancelTemplateUpload" type="button">Cancel</button><button class="primary-button" id="importProjectTemplate" type="button" disabled><i data-lucide="upload"></i>Import projects</button></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"><i data-lucide="circle-check"></i><span>Project created</span></div>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
