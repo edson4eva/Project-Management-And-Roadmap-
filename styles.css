@@ -842,3 +842,17 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 /* project workspace timeline layout */
 .project-timeline-panel { margin-top: 4px; }
 .project-timeline-panel .timeline-lane-heading span { font-size: 9px; }
+
+/* sub-category headings under a unit */
+.project-subunit-table-heading td { padding: 7px 14px 7px 34px !important; background: #f8faf8; border-bottom: 1px solid var(--line-soft); }
+.project-subunit-table-heading div { display: flex; align-items: center; gap: 8px; }
+.project-subunit-table-heading svg { width: 12px; color: var(--muted); }
+.project-subunit-table-heading strong { font-size: 10px; font-weight: 700; }
+.project-subunit-table-heading small { color: var(--muted); font-size: 9px; font-weight: 600; }
+.project-subunit-heading { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; padding-left: 4px; }
+.project-subunit-heading svg { width: 12px; color: var(--muted); }
+.project-subunit-heading strong { font-size: 10px; font-weight: 700; }
+.project-subunit-heading small { color: var(--muted); font-size: 9px; font-weight: 600; }
+.timeline-sublane { background: #fbfcfb; }
+.timeline-sublane .timeline-lane-heading { padding-left: 30px; background: #fbfcfb; }
+.timeline-sublane .timeline-lane-heading span { color: var(--ink-soft); font-size: 9px; font-weight: 700; letter-spacing: .02em; text-transform: none; }

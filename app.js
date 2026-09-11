@@ -16,18 +16,29 @@ const teamRoleFields = [
   ["frontEndDesigner", "Front End Designer"], ["serviceDesigner", "Service Designer"], ["qa", "QA"]
 ];
 const resourceRoles = ["Product Owner", "Scrum Master", "Project Manager", "Developer", "Architect", "Service Designer", "Front End Designer", "QA", "Business Analyst"];
-const projectUnits = ["Unified Identity and Access Management", "Privacy Portal", "Unified Messaging Service", "Alberta Wallet and Credentials", "eServices", "Alberta Payments", "CRA Income and Data Verification Services", "Learning Management System", "Platforms Operations"];
+const projectUnits = ["Unified Identity and Access Management", "Privacy Portal", "Unified Messaging Service", "Alberta Wallet and Credentials", "Alberta Payments", "CRA Income and Data Verification Services", "Web Services", "Platforms Operations"];
 // Units that have been renamed, so stored projects follow the rename.
+// Optional second level under a unit. A unit with no entry has no sub-categories.
+const unitSubCategories = {
+  "Alberta Payments": ["eServices"],
+  "Web Services": ["Learning Management System"]
+};
+
+function subCategoriesFor(unit) {
+  return unitSubCategories[unit] || [];
+}
+
 const legacyUnitAliases = {
   "Alberta Mobile Wallet": "Alberta Wallet and Credentials",
+  "Learning Management System": "Web Services::Learning Management System",
+  "eServices": "Alberta Payments::eServices",
   "Platform Operations": "Platforms Operations",
   "Identity and Access Management": "Unified Identity and Access Management",
   "CRA Data Verification Service": "CRA Income and Data Verification Services",
-  "Web Services": "eServices",
   "Common Payments": "Alberta Payments"
 };
 
-const unitTeamAssignments = { "Unified Identity and Access Management": "Team 1", "Privacy Portal": "Team 3", "Unified Messaging Service": "Team 4", "Alberta Wallet and Credentials": "Team 5", "eServices": "Team 6", "Alberta Payments": "Team 7", "CRA Income and Data Verification Services": "Team 8", "Learning Management System": "Team 9", "Platforms Operations": "Team 10" };
+const unitTeamAssignments = { "Unified Identity and Access Management": "Team 1", "Privacy Portal": "Team 3", "Unified Messaging Service": "Team 4", "Alberta Wallet and Credentials": "Team 5", "Alberta Payments": "Team 7", "CRA Income and Data Verification Services": "Team 8", "Web Services": "Team 9", "Platforms Operations": "Team 10" };
 const projectTemplateColumns = ["Project Name", "Team", "Unit", "Owner", "Objective", "Start Date", "Target Date", "Status", "Progress (%)", "Priority", "Risk Level", "Approx. Cost in dollars", "Schedule Variance (days)", "Contributors", "Milestone Name", "Milestone Date"];
 const projectStatuses = ["Planned", "On track", "At risk", "Off track", "Completed", "In-flight", "Next", "Later", "Pause"];
 const statusGroups = {
@@ -74,16 +85,16 @@ const seedProjects = [
   {"id": 1023, "name": "Modernization Exploration and Implementation – Exploration", "code": "MEA", "team": "Team 7", "unit": "Alberta Payments", "owner": "Tu Duong-Witte", "objective": "Replace the Evacuation Payment System with common payment services and a common payment platform to deliver emergency payments better, smarter and faster.", "status": "Later", "progress": 0, "start": "2025-10-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
   {"id": 1024, "name": "Post MVP functions for 2027 Season – (i.e. Physical Address, Ineract Bank Verification, Messaging Service, Payment Preference Options, Financial Mangement Con't )", "code": "PMF", "team": "Team 7", "unit": "Alberta Payments", "owner": "Tu Duong-Witte", "objective": "Replace the Evacuation Payment System with common payment services and a common payment platform to deliver emergency payments better, smarter and faster.", "status": "Later", "progress": 0, "start": "2025-11-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
   {"id": 1025, "name": "EEP readiness for the 2026 emergency season", "code": "ERF", "team": "Team 7", "unit": "Alberta Payments", "owner": "Tu Duong-Witte", "objective": "Replace the Evacuation Payment System with common payment services and a common payment platform to deliver emergency payments better, smarter and faster.", "status": "Next", "progress": 0, "start": "2026-01-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1026, "name": "Phase 1 Migration", "code": "P1M", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1027, "name": "Phase 1 Improvements", "code": "P1I", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "In-flight", "progress": 76, "start": "2025-04-01", "end": "2025-10-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-10-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1028, "name": "Police Review Commission", "code": "PRC", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "In-flight", "progress": 90, "start": "2025-05-01", "end": "2025-08-31", "risk": "Medium", "priority": "High", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-08-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1029, "name": "Justice - Parenting After Separation", "code": "J-P", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-06-01", "end": "2025-10-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-10-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1030, "name": "AEMA - Public Alerting", "code": "A-P", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-07-01", "end": "2025-12-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-12-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1031, "name": "AEMA - Wildland Urban Interface", "code": "A-W", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-07-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1032, "name": "Training Academy", "code": "TA", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-07-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1033, "name": "AEMA - Emergency Social Services", "code": "A-E", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-09-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1034, "name": "JET – Asbestos OHS", "code": "J–A", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-09-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
-  {"id": 1035, "name": "Hazard Identification and Risk", "code": "HIA", "team": "Team 9", "unit": "Learning Management System", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-10-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1026, "name": "Phase 1 Migration", "subUnit": "Learning Management System", "code": "P1M", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1027, "name": "Phase 1 Improvements", "subUnit": "Learning Management System", "code": "P1I", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "In-flight", "progress": 76, "start": "2025-04-01", "end": "2025-10-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-10-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1028, "name": "Police Review Commission", "subUnit": "Learning Management System", "code": "PRC", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "In-flight", "progress": 90, "start": "2025-05-01", "end": "2025-08-31", "risk": "Medium", "priority": "High", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-08-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1029, "name": "Justice - Parenting After Separation", "subUnit": "Learning Management System", "code": "J-P", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-06-01", "end": "2025-10-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-10-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1030, "name": "AEMA - Public Alerting", "subUnit": "Learning Management System", "code": "A-P", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-07-01", "end": "2025-12-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-12-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1031, "name": "AEMA - Wildland Urban Interface", "subUnit": "Learning Management System", "code": "A-W", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-07-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1032, "name": "Training Academy", "subUnit": "Learning Management System", "code": "TA", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-07-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1033, "name": "AEMA - Emergency Social Services", "subUnit": "Learning Management System", "code": "A-E", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-09-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1034, "name": "JET – Asbestos OHS", "subUnit": "Learning Management System", "code": "J–A", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-09-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
+  {"id": 1035, "name": "Hazard Identification and Risk", "subUnit": "Learning Management System", "code": "HIA", "team": "Team 9", "unit": "Web Services", "owner": "Ismail Esmail", "objective": "Implement a modern, scalable learning management system that removes the risk of unsupported software and meets external client training needs.", "status": "Later", "progress": 0, "start": "2025-10-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Ismail Esmail", "Arif Kassam"], "members": ["IE", "AK"]},
   {"id": 1036, "name": "Phase 1.0 PIB - Personal Information Bank", "code": "P1P", "team": "Team 3", "unit": "Privacy Portal", "owner": "Chad Bostock", "objective": "Give Albertans access to details on how their personal information is being used across government services.", "status": "Completed", "progress": 100, "start": "2025-01-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Chad Bostock", "Edson Roopnarine"], "members": ["CB", "ER"]},
   {"id": 1037, "name": "Phase 3.0 Discovery", "code": "P3D", "team": "Team 3", "unit": "Privacy Portal", "owner": "Chad Bostock", "objective": "Give Albertans access to details on how their personal information is being used across government services.", "status": "Pause", "progress": 60, "start": "2025-04-01", "end": "2025-07-31", "risk": "High", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-07-31", "memberNames": ["Chad Bostock", "Edson Roopnarine"], "members": ["CB", "ER"]},
   {"id": 1038, "name": "Phase 3.0 Development", "code": "P3D", "team": "Team 3", "unit": "Privacy Portal", "owner": "Chad Bostock", "objective": "Give Albertans access to details on how their personal information is being used across government services.", "status": "Pause", "progress": 40, "start": "2025-05-01", "end": "2026-03-31", "risk": "High", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Chad Bostock", "Edson Roopnarine"], "members": ["CB", "ER"]},
@@ -131,27 +142,27 @@ const seedProjects = [
   {"id": 1080, "name": "Build and Configure", "code": "BAC", "team": "Team 4", "unit": "Unified Messaging Service", "owner": "Chad Bostock", "objective": "Implement a unified messaging platform integrated with MOVES and the verified Alberta.ca Account delivering proactive motor vehicle expiry notifications.", "status": "Next", "progress": 0, "start": "2025-12-01", "end": "2026-02-28", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-02-28", "memberNames": ["Chad Bostock", "Edson Roopnarine"], "members": ["CB", "ER"]},
   {"id": 1081, "name": "Implementation and Testing", "code": "IAT", "team": "Team 4", "unit": "Unified Messaging Service", "owner": "Chad Bostock", "objective": "Implement a unified messaging platform integrated with MOVES and the verified Alberta.ca Account delivering proactive motor vehicle expiry notifications.", "status": "Next", "progress": 0, "start": "2026-02-01", "end": "2026-04-30", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-04-30", "memberNames": ["Chad Bostock", "Edson Roopnarine"], "members": ["CB", "ER"]},
   {"id": 1082, "name": "Launch", "code": "L", "team": "Team 4", "unit": "Unified Messaging Service", "owner": "Chad Bostock", "objective": "Implement a unified messaging platform integrated with MOVES and the verified Alberta.ca Account delivering proactive motor vehicle expiry notifications.", "status": "Next", "progress": 0, "start": "2026-04-01", "end": "2026-05-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-05-31", "memberNames": ["Chad Bostock", "Edson Roopnarine"], "members": ["CB", "ER"]},
-  {"id": 1083, "name": "Electric Vehicle Tax", "code": "EVT", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "This project entails the implementation of the Electric Vehicle Tax for specific vehicle registration renewals.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-01-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1084, "name": "Learning Management System Integration", "code": "LMS", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "The business area managing the learning management system would like to integrate with eServices to collect fees related to their program.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1085, "name": "Apply Pay Integration", "code": "API", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1086, "name": "Save and Reuse Credit Card", "code": "SAR", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-06-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-06-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1087, "name": "Privacy Portal Integration", "code": "PPI", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "This integration provides a convenient way for Albertans to view their eServices transaction history, aligning with the Privacy Portal initiative's goals of enhancing transparency and user access .", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2024-11-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2024-11-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1088, "name": "Straight to Checkout", "code": "STC", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1089, "name": "F5 Shape - Exploration", "code": "FS-", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1090, "name": "Product Import/Export Functionality", "code": "PIF", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Allows administrators to export products from one environment and import into another environment.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-02-28", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-02-28", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1091, "name": "F5 Distributed Cloud Client-Side Defense – PCI DSS 4.0 Compliance", "code": "FDC", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1092, "name": "Approved Scanning Vendor (ASV) External Passing Scan – PCI DSS 4.0 Compliance", "code": "ASV", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-11-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1093, "name": "Adobe Commerce Upgrade 2.4.6-p11", "code": "ACU", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 90, "start": "2025-03-01", "end": "2025-08-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-08-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1094, "name": "Quantum Metric Pilot", "code": "QMP", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 72, "start": "2025-05-01", "end": "2025-10-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-10-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1095, "name": "1GX API Integration for Journal Posting", "code": "1AI", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 33, "start": "2025-07-01", "end": "2026-01-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1096, "name": "Child Care Administrative Penalties Integration", "code": "CCA", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 39, "start": "2025-07-01", "end": "2025-12-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-12-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1097, "name": "Address Validation Service Integration", "code": "AVS", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 22, "start": "2025-08-01", "end": "2026-01-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1098, "name": "F5 Shape Implementation", "code": "FSI", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Next", "progress": 0, "start": "2025-08-01", "end": "2025-12-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-12-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1099, "name": "Automated Refunds", "code": "AR", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Later", "progress": 0, "start": "2025-09-01", "end": "2026-04-30", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1100, "name": "Court of Appeal Management System Integration", "code": "COA", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Next", "progress": 0, "start": "2025-10-01", "end": "2026-01-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1101, "name": "Financial Reporting from Data Services", "code": "FRF", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Move eServices financial reporting from Adobe Commerce to the data warehouse/ Metabase thereby improving performance of eServices.", "status": "Later", "progress": 0, "start": "2025-10-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1102, "name": "Automatic Vehicle Registration Renewals", "code": "AVR", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "This project would allow customers to opt-in (and opt-out) of automatic vehicle registration renewals.", "status": "Later", "progress": 0, "start": "2025-12-01", "end": "2026-04-30", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
-  {"id": 1103, "name": "Health Card Modernization: DL/ID", "code": "HCM", "team": "Team 6", "unit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Later", "progress": 0, "start": "2025-12-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1083, "name": "Electric Vehicle Tax", "code": "EVT", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "This project entails the implementation of the Electric Vehicle Tax for specific vehicle registration renewals.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-01-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1084, "name": "Learning Management System Integration", "code": "LMS", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "The business area managing the learning management system would like to integrate with eServices to collect fees related to their program.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1085, "name": "Apply Pay Integration", "code": "API", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1086, "name": "Save and Reuse Credit Card", "code": "SAR", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-06-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-06-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1087, "name": "Privacy Portal Integration", "code": "PPI", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "This integration provides a convenient way for Albertans to view their eServices transaction history, aligning with the Privacy Portal initiative's goals of enhancing transparency and user access .", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2024-11-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2024-11-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1088, "name": "Straight to Checkout", "code": "STC", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1089, "name": "F5 Shape - Exploration", "code": "FS-", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-04-30", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1090, "name": "Product Import/Export Functionality", "code": "PIF", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Allows administrators to export products from one environment and import into another environment.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-02-28", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-02-28", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1091, "name": "F5 Distributed Cloud Client-Side Defense – PCI DSS 4.0 Compliance", "code": "FDC", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-10-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1092, "name": "Approved Scanning Vendor (ASV) External Passing Scan – PCI DSS 4.0 Compliance", "code": "ASV", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Completed", "progress": 100, "start": "2024-11-01", "end": "2025-03-31", "risk": "Low", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1093, "name": "Adobe Commerce Upgrade 2.4.6-p11", "code": "ACU", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 90, "start": "2025-03-01", "end": "2025-08-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-08-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1094, "name": "Quantum Metric Pilot", "code": "QMP", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 72, "start": "2025-05-01", "end": "2025-10-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-10-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1095, "name": "1GX API Integration for Journal Posting", "code": "1AI", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 33, "start": "2025-07-01", "end": "2026-01-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1096, "name": "Child Care Administrative Penalties Integration", "code": "CCA", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 39, "start": "2025-07-01", "end": "2025-12-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-12-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1097, "name": "Address Validation Service Integration", "code": "AVS", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "In-flight", "progress": 22, "start": "2025-08-01", "end": "2026-01-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1098, "name": "F5 Shape Implementation", "code": "FSI", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Next", "progress": 0, "start": "2025-08-01", "end": "2025-12-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2025-12-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1099, "name": "Automated Refunds", "code": "AR", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Later", "progress": 0, "start": "2025-09-01", "end": "2026-04-30", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1100, "name": "Court of Appeal Management System Integration", "code": "COA", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Next", "progress": 0, "start": "2025-10-01", "end": "2026-01-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-01-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1101, "name": "Financial Reporting from Data Services", "code": "FRF", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Move eServices financial reporting from Adobe Commerce to the data warehouse/ Metabase thereby improving performance of eServices.", "status": "Later", "progress": 0, "start": "2025-10-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1102, "name": "Automatic Vehicle Registration Renewals", "code": "AVR", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "This project would allow customers to opt-in (and opt-out) of automatic vehicle registration renewals.", "status": "Later", "progress": 0, "start": "2025-12-01", "end": "2026-04-30", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-04-30", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
+  {"id": 1103, "name": "Health Card Modernization: DL/ID", "code": "HCM", "team": "Team 6", "unit": "Alberta Payments", "subUnit": "eServices", "owner": "Tu Duong-Witte", "objective": "Digital platform enabling Albertans to pay for government services including motor vehicle services, fine payments and court-related searches.", "status": "Later", "progress": 0, "start": "2025-12-01", "end": "2026-03-31", "risk": "Medium", "priority": "Medium", "approxCost": 0, "scheduleVariance": 0, "milestone": "Target completion", "milestoneDate": "2026-03-31", "memberNames": ["Tu Duong-Witte", "Supriya Kallianpur"], "members": ["TD", "SK"]},
 ];
 
 const seedTeams = [
@@ -357,9 +368,12 @@ function loadProjects() {
 function normalizeProjectUnit(project) {
   const { code: _legacyCode, ...projectWithoutCode } = project;
   const aliased = legacyUnitAliases[project.unit] || project.unit;
-  const unit = projectUnits.includes(aliased) ? aliased : projectUnits[0];
+  const [aliasUnit, aliasSub] = aliased.split("::");
+  const unit = projectUnits.includes(aliasUnit) ? aliasUnit : projectUnits[0];
   const team = directoryTeamNames().includes(project.team) ? project.team : defaultTeamForUnit(unit);
-  return { ...projectWithoutCode, code: initials(project.name), unit, team };
+  const candidateSub = project.subUnit || aliasSub || "";
+  const subUnit = subCategoriesFor(unit).includes(candidateSub) ? candidateSub : "";
+  return { ...projectWithoutCode, code: initials(project.name), unit, team, subUnit };
 }
 
 function directoryTeamNames() {
@@ -376,6 +390,15 @@ function populateProjectUnitOptions(selected) {
   const select = elements.form.elements.unit;
   select.innerHTML = projectUnits.map(unit => `<option>${unit}</option>`).join("");
   if (projectUnits.includes(selected)) select.value = selected;
+}
+
+function populateProjectSubUnitOptions(unit, selected) {
+  const options = subCategoriesFor(unit);
+  const select = elements.form.elements.subUnit;
+  select.innerHTML = `<option value="">None</option>${options.map(option => `<option>${option}</option>`).join("")}`;
+  select.value = options.includes(selected) ? selected : "";
+  // a unit with no sub-categories should not show an empty control
+  document.querySelector("#subUnitField").hidden = options.length === 0;
 }
 
 function populateProjectTeamOptions(selected) {
@@ -696,7 +719,7 @@ function getFilteredProjects() {
   const normalized = query.trim().toLowerCase();
   return getFiscalProjects().filter(project => {
     const matchesQuery = !normalized || [project.name, project.owner, project.team, project.unit].some(value => value.toLowerCase().includes(normalized));
-    return matchesQuery && (statusFilter === "all" || project.status === statusFilter) && (teamFilter === "all" || project.team === teamFilter) && (unitFilter === "all" || project.unit === unitFilter);
+    return matchesQuery && (statusFilter === "all" || project.status === statusFilter) && (teamFilter === "all" || project.team === teamFilter) && (unitFilter === "all" || matchesUnitFilter(project));
   });
 }
 
@@ -1045,6 +1068,23 @@ function returnToProjects() {
   window.setTimeout(() => document.querySelector("#allProjectsTitle").scrollIntoView({ behavior: "smooth", block: "start" }), 50);
 }
 
+function matchesUnitFilter(project) {
+  if (!unitFilter.startsWith("sub:")) return project.unit === unitFilter;
+  const [unit, sub] = unitFilter.slice(4).split("::");
+  return project.unit === unit && project.subUnit === sub;
+}
+
+function subGroupsFor(unit, unitProjects) {
+  const groups = [];
+  const loose = unitProjects.filter(project => !project.subUnit);
+  if (loose.length) groups.push({ sub: "", items: loose });
+  subCategoriesFor(unit).forEach(sub => {
+    const items = unitProjects.filter(project => project.subUnit === sub);
+    if (items.length) groups.push({ sub, items });
+  });
+  return groups;
+}
+
 function renderProjects() {
   const filtered = getFilteredProjects();
   const grouped = [...filtered.reduce((groups, project) => {
@@ -1054,8 +1094,8 @@ function renderProjects() {
     return groups;
   }, new Map()).entries()].sort(([unitA], [unitB]) => unitA.localeCompare(unitB));
   elements.projectCount.textContent = `(${filtered.length})`;
-  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading"><td colspan="7"><div><span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${unitProjects.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("");
-  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading"><span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div><div class="project-unit-card-grid">${unitProjects.map(project => projectCard(project, projects.indexOf(project))).join("")}</div></section>`).join("");
+  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading"><td colspan="7"><div><span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="7"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${group.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("");
+  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading"><span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${group.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}</section>`).join("");
   const empty = filtered.length === 0;
   elements.emptyState.classList.toggle("hidden", !empty);
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");
@@ -1075,8 +1115,13 @@ function populateTeamFilters() {
   document.querySelector("#teamFilter").value = teamFilter;
   document.querySelector("#roadmapTeamFilter").value = roadmapTeam;
   document.querySelector("#reportTeam").value = reportTeam;
-  document.querySelector("#unitFilter").innerHTML = `<option value="all">All units</option>${units.map(unit => `<option value="${unit}">${unit}</option>`).join("")}`;
-  document.querySelector("#unitFilter").value = units.includes(unitFilter) ? unitFilter : "all";
+  const unitOptions = units.map(unit => {
+    const subs = subCategoriesFor(unit).filter(sub => projects.some(project => project.unit === unit && project.subUnit === sub));
+    return `<option value="${unit}">${unit}</option>${subs.map(sub => `<option value="sub:${unit}::${sub}">&nbsp;&nbsp;&#8627; ${sub}</option>`).join("")}`;
+  }).join("");
+  document.querySelector("#unitFilter").innerHTML = `<option value="all">All units</option>${unitOptions}`;
+  const unitValues = ["all", ...units, ...units.flatMap(unit => subCategoriesFor(unit).map(sub => `sub:${unit}::${sub}`))];
+  document.querySelector("#unitFilter").value = unitValues.includes(unitFilter) ? unitFilter : "all";
 }
 
 function populateFiscalYearFilters() {
@@ -1456,7 +1501,7 @@ function projectsExportData() {
     scope: {
       status: statusFilter === "all" ? "All statuses" : statusFilter,
       team: teamFilter === "all" ? "All teams" : teamFilter,
-      unit: unitFilter === "all" ? "All units" : unitFilter,
+      unit: unitFilter === "all" ? "All units" : unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter,
       search: query.trim() || "None"
     },
     totals: {
@@ -1472,10 +1517,10 @@ function projectsExportData() {
   };
 }
 
-const PROJECT_REGISTER_COLUMNS = ["Project", "Unit", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
+const PROJECT_REGISTER_COLUMNS = ["Project", "Unit", "Sub-category", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
 
 function projectRegisterRow(project) {
-  return [project.name, project.unit, project.team, project.owner, project.status, project.priority, project.risk,
+  return [project.name, project.unit, project.subUnit || "", project.team, project.owner, project.status, project.priority, project.risk,
     project.progress / 100, project.start, project.end, Number(project.approxCost) || 0, scheduleVariance(project),
     forecastLabel(project), project.milestone, project.milestoneDate];
 }
@@ -1514,11 +1559,11 @@ function buildProjectsExcel() {
   window.XLSX.utils.book_append_sheet(workbook, summary, "Summary");
 
   const register = window.XLSX.utils.aoa_to_sheet([PROJECT_REGISTER_COLUMNS, ...data.visible.map(projectRegisterRow)]);
-  register["!cols"] = [{ wch: 32 }, { wch: 34 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 14 }];
+  register["!cols"] = [{ wch: 32 }, { wch: 34 }, { wch: 26 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 14 }];
   data.visible.forEach((_, index) => {
     const row = index + 2;
-    if (register[`H${row}`]) register[`H${row}`].z = "0%";
-    if (register[`K${row}`]) register[`K${row}`].z = "$#,##0";
+    if (register[`I${row}`]) register[`I${row}`].z = "0%";
+    if (register[`L${row}`]) register[`L${row}`].z = "$#,##0";
   });
   window.XLSX.utils.book_append_sheet(workbook, register, "Project Register");
 
@@ -1740,12 +1785,12 @@ function buildRoadmapExcel() {
   window.XLSX.utils.book_append_sheet(workbook, metrics, "Success Metrics");
 
   const initiatives = window.XLSX.utils.aoa_to_sheet([
-    ["Quarter", "Unit", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
-    ...data.lanes.flatMap(lane => lane.items.map(project => [data.quarter, lane.unit, project.name, project.team, project.owner,
+    ["Quarter", "Unit", "Sub-category", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
+    ...data.lanes.flatMap(lane => lane.items.map(project => [data.quarter, lane.unit, project.subUnit || "", project.name, project.team, project.owner,
       project.status, project.progress / 100, project.start, project.end, project.milestone, project.milestoneDate]))
   ]);
-  initiatives["!cols"] = [{ wch: 9 }, { wch: 42 }, { wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 14 }];
-  data.visible.forEach((_, index) => { const cell = initiatives[`G${index + 2}`]; if (cell) cell.z = "0%"; });
+  initiatives["!cols"] = [{ wch: 9 }, { wch: 42 }, { wch: 26 }, { wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 14 }];
+  data.visible.forEach((_, index) => { const cell = initiatives[`H${index + 2}`]; if (cell) cell.z = "0%"; });
   window.XLSX.utils.book_append_sheet(workbook, initiatives, "Initiatives");
 
   const milestoneSheet = window.XLSX.utils.aoa_to_sheet([
@@ -2217,15 +2262,21 @@ function renderProjectTimeline(grouped) {
 
   let barIndex = 0;
   const lanes = grouped.map(([unit, unitProjects]) => {
-    const rows = unitProjects
-      .slice()
-      .sort((first, second) => first.start.localeCompare(second.start))
-      .map(project => {
-        const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
-        barIndex += 1;
-        return markup;
-      }).join("");
-    return `<div class="timeline-lane"><div class="timeline-lane-heading"><span>${unit}</span><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${rows}`;
+    const body = subGroupsFor(unit, unitProjects).map(group => {
+      const rows = group.items
+        .slice()
+        .sort((first, second) => first.start.localeCompare(second.start))
+        .map(project => {
+          const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
+          barIndex += 1;
+          return markup;
+        }).join("");
+      const heading = group.sub
+        ? `<div class="timeline-lane timeline-sublane"><div class="timeline-lane-heading"><span>${group.sub}</span><small>${group.items.length}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>`
+        : "";
+      return heading + rows;
+    }).join("");
+    return `<div class="timeline-lane"><div class="timeline-lane-heading"><span>${unit}</span><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${body}`;
   }).join("");
 
   elements.projectTimeline.innerHTML = `
@@ -2411,6 +2462,7 @@ function openModal() {
   elements.form.elements.milestoneDate.value = new Date(start.getTime() + 45 * DAY).toISOString().slice(0, 10);
   projectTeamTouched = false;
   populateProjectUnitOptions(elements.form.elements.unit.value);
+  populateProjectSubUnitOptions(elements.form.elements.unit.value, "");
   populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
   document.querySelector("#projectModalKicker").textContent = "Portfolio intake";
   document.querySelector("#projectModalTitle").textContent = "Create a new project";
@@ -2428,8 +2480,9 @@ function openEditProjectModal(projectId) {
   elements.form.reset();
   projectTeamTouched = true;
   populateProjectUnitOptions(project.unit);
+  populateProjectSubUnitOptions(project.unit, project.subUnit);
   populateProjectTeamOptions(project.team);
-  const values = { name: project.name, unit: project.unit, team: project.team, owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
+  const values = { name: project.name, unit: project.unit, team: project.team, subUnit: project.subUnit || "", owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
   Object.entries(values).forEach(([field, value]) => { elements.form.elements[field].value = value; });
   document.querySelector("#projectModalKicker").textContent = "Project management";
   document.querySelector("#projectModalTitle").textContent = `Edit ${project.name}`;
@@ -2690,7 +2743,7 @@ function submitProject(event) {
   const memberNames = [data.owner, ...contributorNames.filter(name => name.toLowerCase() !== data.owner.toLowerCase())];
   const existing = projects.find(project => project.id === projectBeingEdited);
   const members = existing && !existing.memberNames && !contributorNames.length ? [initials(data.owner), ...existing.members.slice(1)] : memberNames.map(initials);
-  const projectData = { name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -2892,6 +2945,7 @@ document.addEventListener("click", event => {
 });
 elements.form.elements.team.addEventListener("change", () => { projectTeamTouched = true; });
 elements.form.elements.unit.addEventListener("change", event => {
+  populateProjectSubUnitOptions(event.target.value, elements.form.elements.subUnit.value);
   if (!projectTeamTouched) populateProjectTeamOptions(defaultTeamForUnit(event.target.value));
 });
 elements.form.elements.end.addEventListener("input", () => elements.form.elements.end.setCustomValidity(""));
@@ -2908,5 +2962,6 @@ populateFiscalYearFilters();
 populateResourceFilters();
 reconcileTeamProjectIds();
 populateProjectUnitOptions(projectUnits[0]);
+populateProjectSubUnitOptions(projectUnits[0], "");
 populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
 renderAll();
