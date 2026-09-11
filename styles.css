@@ -838,3 +838,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 /* export button groups on the Projects and Roadmap views */
 .view-export-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .roadmap-masthead .heading-actions { flex-wrap: wrap; }
+
+/* project workspace timeline layout */
+.project-timeline-panel { margin-top: 4px; }
+.project-timeline-panel .timeline-lane-heading span { font-size: 9px; }

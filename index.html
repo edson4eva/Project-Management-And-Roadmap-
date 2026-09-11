@@ -183,6 +183,7 @@
                 <div class="segmented-control" aria-label="Project layout">
                   <button class="active" data-layout="table" type="button" aria-label="Table view"><i data-lucide="list"></i></button>
                   <button data-layout="cards" type="button" aria-label="Card view"><i data-lucide="layout-grid"></i></button>
+                  <button data-layout="timeline" type="button" aria-label="Timeline view"><i data-lucide="gantt-chart"></i></button>
                 </div>
               </div>
             </div>
@@ -194,6 +195,24 @@
               </table>
             </div>
             <div class="project-card-grid hidden" id="cardLayout"></div>
+            <section class="roadmap-panel project-timeline-panel hidden" id="timelineLayout" aria-label="Project timeline">
+              <div class="roadmap-toolbar">
+                <div class="roadmap-filters">
+                  <span class="roadmap-period-label" id="projectTimelineLabel"></span>
+                </div>
+                <div class="roadmap-legend">
+                  <span><i class="legend-dot" style="background:var(--green)"></i>In delivery</span>
+                  <span><i class="legend-dot" style="background:var(--red)"></i>Needs attention</span>
+                  <span><i class="legend-dot legend-hatch"></i>Upcoming</span>
+                  <span><i class="legend-dot" style="background:var(--muted)"></i>Completed</span>
+                  <span><i class="milestone-shape"></i>Milestone</span>
+                </div>
+              </div>
+              <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span>Full fiscal year, April 1 to March 31, grouped by unit. Bars are clipped to the year; hover one for its dates and status.</span></p>
+              <div class="roadmap-scroll" id="projectTimelineScroll">
+                <div class="timeline" id="projectTimeline"></div>
+              </div>
+            </section>
             <div class="empty-state hidden" id="emptyState">
               <i data-lucide="search-x"></i><h3>No projects found</h3><p>Try changing your search or filters.</p>
             </div>
