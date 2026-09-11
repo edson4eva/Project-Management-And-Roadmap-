@@ -3,7 +3,7 @@ const AS_OF_DATE = new Date("2025-09-10T12:00:00");
 const AS_OF_ISO = "2025-09-10";
 // Bumped when the seed portfolio changes shape, so a browser holding the previous
 // seed picks up the new one instead of silently keeping stale projects.
-const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2" };
+const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1" };
 const AS_OF_LONG = "September 10, 2025";
 const AUTH_STORAGE_KEY = "platforms-branch-session";
 const DEFAULT_PASSWORD = "1234";
@@ -225,6 +225,7 @@ let teamQuery = "";
 let teamHealthFilter = "all";
 let teamPendingDeletion = null;
 let projectTeamTouched = false;
+let collapsedUnits = loadCollapsedUnits();
 let teamBeingEdited = null;
 let resourceQuery = "";
 let resourceRoleFilter = "all";
@@ -1078,6 +1079,24 @@ function matchesUnitFilter(project) {
   return project.unit === unit && project.subUnit === sub;
 }
 
+function loadCollapsedUnits() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.collapsed));
+    return new Set(Array.isArray(saved) ? saved : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCollapsedUnits() {
+  localStorage.setItem(STORAGE.collapsed, JSON.stringify([...collapsedUnits]));
+}
+
+function unitToggleMarkup(unit) {
+  const collapsed = collapsedUnits.has(unit);
+  return `<button class="section-collapse" data-toggle-unit="${unit}" type="button" aria-expanded="${!collapsed}" title="${collapsed ? "Expand" : "Collapse"} ${unit}" aria-label="${collapsed ? "Expand" : "Collapse"} ${unit}">${collapsed ? "+" : "\u2212"}</button>`;
+}
+
 function subGroupsFor(unit, unitProjects) {
   const groups = [];
   const loose = unitProjects.filter(project => !project.subUnit);
@@ -1091,15 +1110,18 @@ function subGroupsFor(unit, unitProjects) {
 
 function renderProjects() {
   const filtered = getFilteredProjects();
-  const grouped = [...filtered.reduce((groups, project) => {
+  // declared unit order, matching the roadmap and the unit mix card
+  const byUnit = filtered.reduce((groups, project) => {
     const unit = project.unit || "Not assigned";
     if (!groups.has(unit)) groups.set(unit, []);
     groups.get(unit).push(project);
     return groups;
-  }, new Map()).entries()].sort(([unitA], [unitB]) => unitA.localeCompare(unitB));
+  }, new Map());
+  const ordered = [...projectUnits, ...[...byUnit.keys()].filter(unit => !projectUnits.includes(unit))];
+  const grouped = ordered.filter(unit => byUnit.has(unit)).map(unit => [unit, byUnit.get(unit)]);
   elements.projectCount.textContent = `(${filtered.length})`;
-  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading"><td colspan="7"><div><span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="7"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${group.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("");
-  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading"><span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${group.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}</section>`).join("");
+  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="7"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="7"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${group.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("");
+  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${group.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}</section>`).join("");
   const empty = filtered.length === 0;
   elements.emptyState.classList.toggle("hidden", !empty);
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");
@@ -2253,20 +2275,10 @@ function timelineRowMarkup(project, range, gridMarkup, todayPosition, iconColor)
   return `<div class="timeline-row"><div class="timeline-project"><span class="project-icon ${iconColor}">${project.code}</span><div><strong title="${project.name}">${project.name}</strong><small>${project.team} - ${project.owner}</small></div></div><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}">${gridMarkup}${todayPosition === null ? "" : `<span class="today-line"></span>`}<button class="${timelineBarClass(project.status)} open-project" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete" aria-label="${project.name}, ${project.status}, ${project.progress}% complete"><span class="timeline-bar-fill" style="width:${project.progress}%"></span><span class="timeline-bar-label">${project.progress}%</span></button>${milestoneMarkup}</div></div>`;
 }
 
-function renderProjectTimeline(grouped) {
-  const range = fiscalTimelineRange();
-  const columns = range.periods.map(period => `${period.days}fr`).join(" ");
-  const todayPosition = AS_OF_DATE >= range.start && AS_OF_DATE <= range.end
-    ? (AS_OF_DATE - range.start + DAY / 2) / range.duration * 100
-    : null;
-  const currentQuarter = getFiscalYear(AS_OF_DATE) === selectedFiscalYear ? fiscalQuarterOf(AS_OF_DATE) : -1;
-  const bands = quarterBands(range, currentQuarter);
-  const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
-  document.querySelector("#projectTimelineLabel").textContent = `${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}`;
-
+function timelineLanesMarkup(entries, range, gridMarkup, todayPosition, noun) {
   let barIndex = 0;
-  const lanes = grouped.map(([unit, unitProjects]) => {
-    const body = subGroupsFor(unit, unitProjects).map(group => {
+  return entries.map(([unit, unitProjects]) => {
+    const body = collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => {
       const rows = group.items
         .slice()
         .sort((first, second) => first.start.localeCompare(second.start))
@@ -2280,8 +2292,23 @@ function renderProjectTimeline(grouped) {
         : "";
       return heading + rows;
     }).join("");
-    return `<div class="timeline-lane"><div class="timeline-lane-heading"><span>${unit}</span><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${body}`;
+    const count = `${unitProjects.length} ${unitProjects.length === 1 ? noun : `${noun}s`}`;
+    return `<div class="timeline-lane"><div class="timeline-lane-heading">${unitToggleMarkup(unit)}<span>${unit}</span><small>${count}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${body}`;
   }).join("");
+}
+
+function renderProjectTimeline(grouped) {
+  const range = fiscalTimelineRange();
+  const columns = range.periods.map(period => `${period.days}fr`).join(" ");
+  const todayPosition = AS_OF_DATE >= range.start && AS_OF_DATE <= range.end
+    ? (AS_OF_DATE - range.start + DAY / 2) / range.duration * 100
+    : null;
+  const currentQuarter = getFiscalYear(AS_OF_DATE) === selectedFiscalYear ? fiscalQuarterOf(AS_OF_DATE) : -1;
+  const bands = quarterBands(range, currentQuarter);
+  const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
+  document.querySelector("#projectTimelineLabel").textContent = `${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}`;
+
+  const lanes = timelineLanesMarkup(grouped, range, gridMarkup, todayPosition, "project");
 
   elements.projectTimeline.innerHTML = `
     <div class="timeline-header"><div class="timeline-project-heading"><span>Project</span><small>${fiscalYearLabel(selectedFiscalYear)}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(205px + (100% - 205px) * ${todayPosition / 100})">Today</span>`}</div>
@@ -2298,19 +2325,10 @@ function renderRoadmap() {
 
   const bands = quarterBands(range);
   const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
-  let barIndex = 0;
-  const laneMarkup = projectUnits
-    .map(unit => ({ unit, items: visible.filter(project => project.unit === unit) }))
-    .filter(lane => lane.items.length)
-    .map(lane => {
-      const rows = lane.items.map(project => {
-        const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
-        barIndex += 1;
-        return markup;
-      }).join("");
-      const laneTotal = lane.items.length;
-      return `<div class="timeline-lane"><div class="timeline-lane-heading"><span>${lane.unit}</span><small>${laneTotal} ${laneTotal === 1 ? "initiative" : "initiatives"}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${rows}`;
-    }).join("");
+  const laneEntries = projectUnits
+    .map(unit => [unit, visible.filter(project => project.unit === unit)])
+    .filter(([, items]) => items.length);
+  const laneMarkup = timelineLanesMarkup(laneEntries, range, gridMarkup, todayPosition, "initiative");
 
   elements.timeline.innerHTML = `
     <div class="timeline-header"><div class="timeline-project-heading"><span>Initiative</span><small>${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(205px + (100% - 205px) * ${todayPosition / 100})">Today</span>`}</div>
@@ -2837,6 +2855,19 @@ document.addEventListener("keydown", event => {
   const selectable = event.target.closest(".project-card.open-project-page, .project-select-row");
   if (selectable && ["Enter", " "].includes(event.key)) { event.preventDefault(); renderProjectPage(selectable.dataset.id || selectable.dataset.projectPage); }
 });
+
+document.addEventListener("click", event => {
+  const toggle = event.target.closest("[data-toggle-unit]");
+  if (!toggle) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const unit = toggle.dataset.toggleUnit;
+  if (collapsedUnits.has(unit)) collapsedUnits.delete(unit);
+  else collapsedUnits.add(unit);
+  saveCollapsedUnits();
+  if (activeView === "roadmap") renderRoadmap();
+  else renderProjects();
+}, true);
 
 document.querySelectorAll("[data-layout]").forEach(button => button.addEventListener("click", () => {
   activeLayout = button.dataset.layout;

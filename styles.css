@@ -856,3 +856,13 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-sublane { background: #fbfcfb; }
 .timeline-sublane .timeline-lane-heading { padding-left: 30px; background: #fbfcfb; }
 .timeline-sublane .timeline-lane-heading span { color: var(--ink-soft); font-size: 9px; font-weight: 700; letter-spacing: .02em; text-transform: none; }
+
+/* expand / collapse a unit section */
+.section-collapse { display: grid; width: 18px; height: 18px; flex: 0 0 auto; place-items: center; padding: 0; color: var(--ink-soft); font-family: "Manrope", system-ui, sans-serif; font-size: 13px; font-weight: 800; line-height: 1; background: #fff; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+.section-collapse:hover { color: var(--ink); background: var(--canvas); border-color: var(--muted); }
+.section-collapse:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+.project-unit-table-heading.collapsed td { border-bottom: 1px solid var(--line); }
+.project-unit-heading .section-collapse { margin-right: 2px; }
+.timeline-lane-heading .section-collapse { width: 16px; height: 16px; font-size: 11px; }
+.timeline-lane-heading { gap: 7px; justify-content: flex-start; }
+.timeline-lane-heading small { margin-left: auto; }
