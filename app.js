@@ -856,22 +856,12 @@ function renderCapacity() {
     .sort((a, b) => b.total - a.total);
 
   elements.capacityValue.textContent = `${fiscalProjects.length}`;
-  // one dot per band, sitting on the track at the midpoint of that band's share,
-  // sized by its project count so magnitudes are comparable across rows
-  const peak = Math.max(1, ...units.flatMap(row => row.counts));
   elements.capacityChart.innerHTML = units.length
     ? units.map(row => {
-        let offset = 0;
-        const dots = unitMixBands.map((band, index) => {
-          const count = row.counts[index];
-          if (!count) return "";
-          const share = count / row.total * 100;
-          const midpoint = offset + share / 2;
-          offset += share;
-          const size = Math.round(9 + count / peak * 11);
-          return `<button class="unit-mix-dot" data-mix-band="${band.key}" data-mix-unit="${row.unit}" data-tip-count="${count}" data-tip-label="${band.label}" type="button" style="--dot-left:${midpoint}%;--dot-size:${size}px;--bar-color:${band.color}" aria-label="${band.label}, ${count} ${count === 1 ? "project" : "projects"} in ${row.unit}. Filter the project list."><span class="unit-mix-tip" aria-hidden="true"><strong>${count}</strong>${band.label}</span></button>`;
-        }).join("");
-        return `<div class="capacity-row"><span class="unit-mix-label" title="${row.unit}">${row.unit}</span><div class="unit-mix-track">${dots}</div><strong>${row.total}</strong></div>`;
+        const segments = unitMixBands.map((band, index) => row.counts[index]
+          ? `<button class="unit-mix-seg" data-mix-band="${band.key}" data-mix-unit="${row.unit}" data-tip-count="${row.counts[index]}" data-tip-label="${band.label}" type="button" style="width:${row.counts[index] / row.total * 100}%;--bar-color:${band.color}" aria-label="${band.label}, ${row.counts[index]} ${row.counts[index] === 1 ? "project" : "projects"} in ${row.unit}. Filter the project list."><span class="unit-mix-tip" aria-hidden="true"><strong>${row.counts[index]}</strong>${band.label}</span></button>`
+          : "").join("");
+        return `<div class="capacity-row"><span class="unit-mix-label" title="${row.unit}">${row.unit}</span><div class="capacity-track unit-mix-track">${segments}</div><strong>${row.total}</strong></div>`;
       }).join("")
     : `<p class="unit-mix-empty">No projects in this fiscal year yet.</p>`;
 
