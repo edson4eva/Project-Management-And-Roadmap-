@@ -53,10 +53,10 @@ const statusGroups = {
 };
 const deliveryStatuses = [...statusGroups.healthy, ...statusGroups.attention];
 const unitMixBands = [
-  { key: "delivery", label: "In delivery", color: "var(--green)", statuses: statusGroups.healthy },
-  { key: "attention", label: "Needs attention", color: "var(--red)", statuses: statusGroups.attention },
-  { key: "upcoming", label: "Upcoming", color: "var(--blue)", statuses: statusGroups.upcoming },
-  { key: "done", label: "Completed", color: "var(--muted)", statuses: statusGroups.done }
+  { key: "delivery", label: "In delivery", color: "var(--bar-delivery)", statuses: statusGroups.healthy },
+  { key: "attention", label: "Needs attention", color: "var(--bar-attention)", statuses: statusGroups.attention },
+  { key: "upcoming", label: "Upcoming", color: "var(--bar-upcoming)", statuses: statusGroups.upcoming },
+  { key: "done", label: "Completed", color: "var(--bar-done)", statuses: statusGroups.done }
 ];
 const statusLegendColors = {
   "On track": "var(--green)", "In-flight": "var(--blue)", "At risk": "var(--amber)", "Off track": "var(--red)",

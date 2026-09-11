@@ -23,6 +23,12 @@
   --radius-sm: 6px;
   --radius-xs: 4px;
   --timeline-label-width: 205px;
+  /* Vibrant variants used only by the unit mix bars and their legend. The
+     muted --green/--red/--blue tokens stay as they are everywhere else. */
+  --bar-delivery: #10a35a;
+  --bar-attention: #f14d55;
+  --bar-upcoming: #2f8fe0;
+  --bar-done: #93a29b;
   --fs-100: 11px;
   --fs-200: 12px;
   --fs-300: 13px;
