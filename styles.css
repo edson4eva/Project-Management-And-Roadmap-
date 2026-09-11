@@ -925,12 +925,13 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 
 /* draggable ruler between the label column and the grid */
 .timeline-project > div { min-width: 0; }
-.timeline-resizer { position: absolute; top: 0; bottom: 0; left: var(--timeline-label-width); z-index: 7; width: 11px; padding: 0; background: none; border: 0; cursor: col-resize; transform: translateX(-5px); touch-action: none; }
-.timeline-resizer::before { position: absolute; top: 0; bottom: 0; left: 5px; width: 1px; content: ""; background: var(--line); transition: background .15s ease, width .15s ease; }
-.timeline-resizer::after { position: absolute; top: 21px; left: 1px; width: 9px; height: 22px; content: ""; background: #fff url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='22'%3E%3Cg fill='%23858d89'%3E%3Crect x='2' y='6' width='1' height='10' rx='.5'/%3E%3Crect x='4' y='6' width='1' height='10' rx='.5'/%3E%3Crect x='6' y='6' width='1' height='10' rx='.5'/%3E%3C/g%3E%3C/svg%3E") center no-repeat; border: 1px solid var(--line); border-radius: var(--radius-xs); }
-.timeline-resizer:hover::before, .timeline-resizer:focus-visible::before, .timeline-resizer.dragging::before { width: 2px; background: var(--green); }
-.timeline-resizer:focus-visible { outline: 2px solid var(--green); outline-offset: -1px; }
-.timeline-resizer:hover::after, .timeline-resizer.dragging::after { border-color: var(--green); }
+.timeline-resizer { position: absolute; top: 0; bottom: 0; left: var(--timeline-label-width); z-index: 7; width: 13px; padding: 0; background: none; border: 0; cursor: col-resize; transform: translateX(-6px); touch-action: none; }
+.timeline-resizer::before { position: absolute; top: 0; bottom: 0; left: 6px; width: 1px; content: ""; background: var(--line); transition: background .15s ease, width .15s ease; }
+/* the grab handle: bright amber so it reads as the one draggable thing here */
+.timeline-resizer::after { position: absolute; top: 19px; left: 1px; width: 11px; height: 28px; content: ""; background: #f2b01e url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='28'%3E%3Cg fill='%231b3a30'%3E%3Crect x='3' y='9' width='1.4' height='10' rx='.7'/%3E%3Crect x='5.3' y='9' width='1.4' height='10' rx='.7'/%3E%3Crect x='7.6' y='9' width='1.4' height='10' rx='.7'/%3E%3C/g%3E%3C/svg%3E") center no-repeat; border: 1px solid #b07904; border-radius: var(--radius-sm); box-shadow: 0 1px 4px rgba(24, 32, 29, .3); transition: background-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.timeline-resizer:hover::after, .timeline-resizer:focus-visible::after, .timeline-resizer.dragging::after { background-color: #ffc93c; box-shadow: 0 2px 7px rgba(24, 32, 29, .38); transform: scale(1.08); }
+.timeline-resizer:hover::before, .timeline-resizer:focus-visible::before, .timeline-resizer.dragging::before { width: 2px; background: #f2b01e; }
+.timeline-resizer:focus-visible { outline: 2px solid #b07904; outline-offset: -1px; }
 body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* scope inherited from the Projects section */
