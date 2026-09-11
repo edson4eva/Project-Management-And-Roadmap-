@@ -859,7 +859,7 @@ function renderCapacity() {
   elements.capacityChart.innerHTML = units.length
     ? units.map(row => {
         const segments = unitMixBands.map((band, index) => row.counts[index]
-          ? `<button class="unit-mix-seg" data-mix-band="${band.key}" data-mix-unit="${row.unit}" data-tip-count="${row.counts[index]}" data-tip-label="${band.label}" type="button" style="width:${row.counts[index] / row.total * 100}%;--bar-color:${band.color}" aria-label="${band.label}, ${row.counts[index]} ${row.counts[index] === 1 ? "project" : "projects"} in ${row.unit}. Filter the project list."><span class="unit-mix-tip" aria-hidden="true"><strong>${row.counts[index]}</strong>${band.label}</span></button>`
+          ? `<button class="unit-mix-seg" data-mix-band="${band.key}" data-mix-unit="${row.unit}" data-tip-count="${row.counts[index]}" data-tip-label="${band.label}" type="button" style="width:${row.counts[index] / row.total * 100}%;--bar-color:${band.color}" aria-label="${band.label}, ${row.counts[index]} ${row.counts[index] === 1 ? "project" : "projects"} in ${row.unit}. Filter the project list."><span class="unit-mix-tip" aria-hidden="true"><i class="unit-mix-tip-pointer"></i><strong>${row.counts[index]}</strong>${band.label}</span></button>`
           : "").join("");
         return `<div class="capacity-row"><span class="unit-mix-label" title="${row.unit}">${row.unit}</span><div class="capacity-track unit-mix-track">${segments}</div><strong>${row.total}</strong></div>`;
       }).join("")
