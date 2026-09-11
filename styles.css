@@ -932,6 +932,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* hover a segment and its count pops up above that colour */
 .unit-mix-tip { position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 6; display: flex; align-items: baseline; gap: 5px; padding: 5px 9px; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; background: #fff; border: 1px solid #7c8781; border-radius: var(--radius-sm); box-shadow: 0 6px 18px rgba(24, 32, 29, .22); opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
+.unit-mix-tip-dot { width: 9px; height: 9px; flex: 0 0 auto; align-self: center; background: var(--bar-color, var(--green)); border-radius: 50%; box-shadow: 0 0 0 1px rgba(8, 12, 11, .22); }
 .unit-mix-tip strong { color: #000; font-family: "Manrope", sans-serif; font-size: var(--fs-300); font-weight: 800; }
 .unit-mix-tip::before, .unit-mix-tip::after { position: absolute; left: 50%; width: 0; height: 0; content: ""; border: 6px solid transparent; transform: translateX(-50%); }
 .unit-mix-tip::before { top: 100%; border-top-color: #7c8781; }
