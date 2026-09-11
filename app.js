@@ -1180,7 +1180,7 @@ function applyTimelineLabelWidth(width, persist = true) {
   return clamped;
 }
 
-const TIMELINE_VIEWPORT = { min: 220, max: 1400 };
+const TIMELINE_VIEWPORT = { min: 320, max: 1400 };
 function storedTimelineViewport() {
   const stored = Number(localStorage.getItem(STORAGE.viewport));
   if (!Number.isFinite(stored) || stored <= 0) return null;
