@@ -936,13 +936,15 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 /* hover a segment and its count pops up above that colour */
 .unit-mix-tip { position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 6; display: flex; align-items: baseline; gap: 5px; padding: 5px 9px; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; background: #fff; border: 1px solid #7c8781; border-radius: var(--radius-sm); box-shadow: 0 6px 18px rgba(24, 32, 29, .22); opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
 .unit-mix-tip strong { color: #000; font-family: "Manrope", sans-serif; font-size: var(--fs-300); font-weight: 800; }
-.unit-mix-tip::after { position: absolute; top: 100%; left: 50%; width: 8px; height: 8px; content: ""; background: #fff; border-right: 1px solid #7c8781; border-bottom: 1px solid #7c8781; border-radius: 0 0 2px 0; transform: translate(-50%, -50%) rotate(45deg); }
+.unit-mix-tip::before, .unit-mix-tip::after { position: absolute; left: 50%; width: 0; height: 0; content: ""; border: 6px solid transparent; transform: translateX(-50%); }
+.unit-mix-tip::before { top: 100%; border-top-color: #7c8781; }
+.unit-mix-tip::after { top: calc(100% - 2px); border-top-color: #fff; }
 .unit-mix-seg:hover .unit-mix-tip, .unit-mix-seg:focus-visible .unit-mix-tip { opacity: 1; transform: translate(-50%, 0); }
 /* keep the tooltip on screen for the first and last segment of a row */
 .unit-mix-seg:first-child .unit-mix-tip { left: 0; transform: translate(0, 5px); }
 .unit-mix-seg:first-child:hover .unit-mix-tip, .unit-mix-seg:first-child:focus-visible .unit-mix-tip { transform: translate(0, 0); }
-.unit-mix-seg:first-child .unit-mix-tip::after { left: 18px; }
+.unit-mix-seg:first-child .unit-mix-tip::before, .unit-mix-seg:first-child .unit-mix-tip::after { left: 18px; }
 .unit-mix-seg:last-child:not(:only-child) .unit-mix-tip { right: 0; left: auto; transform: translate(0, 5px); }
 .unit-mix-seg:last-child:not(:only-child):hover .unit-mix-tip, .unit-mix-seg:last-child:not(:only-child):focus-visible .unit-mix-tip { transform: translate(0, 0); }
-.unit-mix-seg:last-child:not(:only-child) .unit-mix-tip::after { right: 18px; left: auto; }
+.unit-mix-seg:last-child:not(:only-child) .unit-mix-tip::before, .unit-mix-seg:last-child:not(:only-child) .unit-mix-tip::after { left: calc(100% - 18px); }
 @media (prefers-reduced-motion: reduce) { .unit-mix-tip { transition: none; } }
