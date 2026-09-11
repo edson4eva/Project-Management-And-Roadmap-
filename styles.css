@@ -234,7 +234,7 @@ h3 { font-size: 14px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .health-panel, .focus-panel, .capacity-panel { min-height: 282px; padding: 19px; }
 .capacity-panel { display: flex; flex-direction: column; gap: 13px; }
-.capacity-panel .capacity-chart { display: flex; flex: 1 1 auto; flex-direction: column; gap: 9px; }
+.capacity-panel .capacity-chart { display: flex; flex: 1 1 auto; flex-direction: column; gap: 20px; }
 .capacity-panel .capacity-note { margin-top: auto; }
 .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .count-badge { display: inline-grid; min-width: 25px; height: 25px; place-items: center; color: var(--coral); background: var(--coral-soft); border-radius: 50%; font-size: var(--fs-300); font-weight: 700; }
@@ -931,7 +931,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .unit-mix-legend-item i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
 
 /* hover a segment and its count pops up above that colour */
-.unit-mix-tip { background: none; border: 0; border-radius: 0; height: auto; position: absolute; bottom: calc(100% + 2px); left: 50%; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 0; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
+.unit-mix-tip { background: none; border: 0; border-radius: 0; height: auto; position: absolute; bottom: calc(100% + 4px); left: 50%; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 0; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
 .unit-mix-tip-pointer { width: 0; height: 0; flex: 0 0 auto; border: 7px solid transparent; border-top: 10px solid #f2b01e; border-bottom: 0; }
 .unit-mix-tip strong { color: #000; font-family: "Manrope", sans-serif; font-size: var(--fs-300); font-weight: 800; }
 .unit-mix-seg:hover .unit-mix-tip, .unit-mix-seg:focus-visible .unit-mix-tip { opacity: 1; transform: translate(-50%, 0); }
