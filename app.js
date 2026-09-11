@@ -3,7 +3,7 @@ const AS_OF_DATE = new Date("2025-09-10T12:00:00");
 const AS_OF_ISO = "2025-09-10";
 // Bumped when the seed portfolio changes shape, so a browser holding the previous
 // seed picks up the new one instead of silently keeping stale projects.
-const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1" };
+const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1", zoom: "pb-timeline-zoom-v1" };
 const AS_OF_LONG = "September 10, 2025";
 const AUTH_STORAGE_KEY = "platforms-branch-session";
 const DEFAULT_PASSWORD = "1234";
@@ -1180,6 +1180,44 @@ function applyTimelineLabelWidth(width, persist = true) {
 }
 
 const TIMELINE_VIEWPORT = { min: 220, max: 1400 };
+const TIMELINE_ZOOM = [
+  { key: "fit", label: "Fit", period: 0 },
+  { key: "wide", label: "Wide", period: 190 },
+  { key: "wider", label: "Wider", period: 320 }
+];
+
+function timelineZoom() {
+  const stored = localStorage.getItem(STORAGE.zoom);
+  return TIMELINE_ZOOM.find(step => step.key === stored) || TIMELINE_ZOOM[0];
+}
+
+function renderTimelineZoomControls() {
+  document.querySelectorAll("#roadmapZoomSlot, #projectZoomSlot").forEach(slot => {
+    if (!slot.querySelector("[data-timeline-zoom]")) slot.innerHTML = timelineZoomMarkup();
+  });
+}
+
+function applyTimelineZoom(key, persist = true) {
+  const step = TIMELINE_ZOOM.find(item => item.key === key) || TIMELINE_ZOOM[0];
+  if (persist) localStorage.setItem(STORAGE.zoom, step.key);
+  document.querySelectorAll("[data-timeline-zoom]").forEach(button => {
+    const active = button.dataset.timelineZoom === step.key;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll(".timeline").forEach(timeline => {
+    const periods = timeline.querySelectorAll(".timeline-month").length;
+    timeline.style.minWidth = step.period && periods
+      ? `calc(var(--timeline-label-width) + ${periods * step.period}px)`
+      : "";
+  });
+  return step;
+}
+
+function timelineZoomMarkup() {
+  const current = timelineZoom().key;
+  return `<div class="segmented-text timeline-zoom" role="group" aria-label="Timeline width">${TIMELINE_ZOOM.map(step => `<button data-timeline-zoom="${step.key}" class="${step.key === current ? "active" : ""}" type="button" aria-pressed="${step.key === current}" title="${step.period ? `${step.period}px per month - scroll sideways to pan` : "Shrink the timeline to fit the panel"}">${step.label}</button>`).join("")}</div>`;
+}
 
 function storedTimelineViewport() {
   const stored = Number(localStorage.getItem(STORAGE.viewport));
@@ -1247,7 +1285,7 @@ function renderProjects() {
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");
   elements.cardLayout.classList.toggle("hidden", empty || activeLayout !== "cards");
   elements.timelineLayout.classList.toggle("hidden", empty || activeLayout !== "timeline");
-  if (activeLayout === "timeline" && !empty) renderProjectTimeline(grouped);
+  if (activeLayout === "timeline" && !empty) { renderProjectTimeline(grouped); applyTimelineZoom(timelineZoom().key, false); }
   refreshIcons();
 }
 
@@ -2498,6 +2536,7 @@ function renderRoadmap() {
   renderRoadmapStrategy();
   renderRoadmapScopeStrip();
   renderQuarterPicker();
+  applyTimelineZoom(timelineZoom().key, false);
   refreshIcons();
 }
 
@@ -3068,6 +3107,13 @@ document.querySelectorAll("[data-layout]").forEach(button => button.addEventList
 }));
 
 
+document.addEventListener("click", event => {
+  const zoom = event.target.closest("[data-timeline-zoom]");
+  if (!zoom) return;
+  const step = applyTimelineZoom(zoom.dataset.timelineZoom);
+  showToast(step.period ? `Timeline width: ${step.label}` : "Timeline fitted to the panel");
+});
+
 document.querySelector("#clearRoadmapScope").addEventListener("click", clearProjectScope);
 
 document.querySelector("#roadmapQuarterPicker").addEventListener("click", event => {
@@ -3193,6 +3239,8 @@ populateFiscalYearFilters();
 populateResourceFilters();
 applyTimelineLabelWidth(timelineLabelWidth(), false);
 initTimelineViewports();
+renderTimelineZoomControls();
+applyTimelineZoom(timelineZoom().key, false);
 reconcileTeamProjectIds();
 populateProjectUnitOptions(projectUnits[0]);
 populateProjectSubUnitOptions(projectUnits[0], "");

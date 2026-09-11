@@ -955,3 +955,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 /* which build the browser actually loaded */
 .build-stamp { color: var(--muted); font-size: var(--fs-100); font-weight: 600; letter-spacing: .02em; }
 .project-heading .build-stamp { color: #8fa79b; }
+
+/* timeline width control */
+.toolbar-divider { width: 1px; height: 20px; flex: 0 0 auto; background: var(--line); }
+.timeline-zoom { flex: 0 0 auto; }
