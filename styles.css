@@ -934,9 +934,9 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .unit-mix-legend-item i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
 
 /* hover a segment and its count pops up above that colour */
-.unit-mix-tip { position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 6; display: flex; align-items: baseline; gap: 5px; padding: 5px 9px; color: #fff; font-size: var(--fs-100); font-weight: 600; white-space: nowrap; background: #18201d; border-radius: var(--radius-sm); box-shadow: 0 6px 16px rgba(24, 32, 29, .28); opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
-.unit-mix-tip strong { font-family: "Manrope", sans-serif; font-size: var(--fs-300); font-weight: 800; }
-.unit-mix-tip::after { position: absolute; top: 100%; left: 50%; width: 8px; height: 8px; content: ""; background: #18201d; border-radius: 0 0 2px 0; transform: translate(-50%, -50%) rotate(45deg); }
+.unit-mix-tip { position: absolute; bottom: calc(100% + 9px); left: 50%; z-index: 6; display: flex; align-items: baseline; gap: 5px; padding: 5px 9px; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; background: #fff; border: 1px solid #7c8781; border-radius: var(--radius-sm); box-shadow: 0 6px 18px rgba(24, 32, 29, .22); opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
+.unit-mix-tip strong { color: #000; font-family: "Manrope", sans-serif; font-size: var(--fs-300); font-weight: 800; }
+.unit-mix-tip::after { position: absolute; top: 100%; left: 50%; width: 8px; height: 8px; content: ""; background: #fff; border-right: 1px solid #7c8781; border-bottom: 1px solid #7c8781; border-radius: 0 0 2px 0; transform: translate(-50%, -50%) rotate(45deg); }
 .unit-mix-seg:hover .unit-mix-tip, .unit-mix-seg:focus-visible .unit-mix-tip { opacity: 1; transform: translate(-50%, 0); }
 /* keep the tooltip on screen for the first and last segment of a row */
 .unit-mix-seg:first-child .unit-mix-tip { left: 0; transform: translate(0, 5px); }
