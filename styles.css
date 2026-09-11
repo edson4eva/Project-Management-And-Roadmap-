@@ -924,10 +924,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .inherited-scope .text-button { flex: 0 0 auto; color: #805811; font-weight: 700; }
 
 /* band segments and legend entries filter the project list */
-.unit-mix-seg { transition: filter .15s ease, transform .15s ease; }
-.unit-mix-seg:hover { filter: brightness(1.12) saturate(1.08); }
 .unit-mix-seg:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.unit-mix-track:hover .unit-mix-seg:not(:hover) { filter: saturate(.75); }
 .unit-mix-legend-item { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; color: var(--ink-soft); font: inherit; font-size: var(--fs-100); font-weight: 600; background: none; border: 1px solid transparent; border-radius: 99px; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
 .unit-mix-legend-item:hover { color: var(--ink); background: var(--canvas); border-color: var(--line); }
 .unit-mix-legend-item:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
