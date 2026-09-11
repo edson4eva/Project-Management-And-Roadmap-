@@ -402,7 +402,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .roadmap-summary-item strong { font-family: "Manrope"; font-size: 18px; }
 .roadmap-summary-item span { color: var(--muted); font-size: var(--fs-200); }
 .roadmap-summary-item > svg { width: 14px; margin-left: auto; color: var(--muted); }
-.roadmap-panel { overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+.roadmap-panel { overflow: visible; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
 .roadmap-toolbar { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .roadmap-filters, .roadmap-legend { display: flex; align-items: center; gap: 10px; }
 .roadmap-period-label { min-width: 145px; color: var(--ink-soft); font-size: var(--fs-100); font-weight: 700; }
@@ -411,7 +411,17 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .roadmap-legend span { display: flex; align-items: center; gap: 5px; }
 .legend-dot { width: 8px; height: 8px; border-radius: var(--radius-xs); }.active-dot { background: var(--green); }.planned-dot { background: var(--blue); }
 .milestone-shape { width: 8px; height: 8px; background: var(--coral); transform: rotate(45deg); }
-.roadmap-scroll { overflow-x: auto; }
+/* A bounded viewport: scrolls both ways, and the user can drag its bottom edge
+   to give the timeline more room. The sticky header and sticky initiative
+   column both anchor to this container. */
+.roadmap-scroll { position: relative; height: var(--timeline-viewport, min(58vh, 520px)); min-height: 220px; max-height: 88vh; overflow: auto; resize: vertical; overscroll-behavior: contain; }
+.roadmap-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+.roadmap-scroll::-webkit-scrollbar-track { background: var(--canvas); }
+.roadmap-scroll::-webkit-scrollbar-thumb { background: #b9c4bf; background-clip: padding-box; border: 3px solid var(--canvas); border-radius: 99px; }
+.roadmap-scroll::-webkit-scrollbar-thumb:hover { background: #8d9a94; background-clip: padding-box; }
+.roadmap-scroll::-webkit-scrollbar-corner { background: var(--canvas); }
+.timeline-viewport-hint { display: flex; align-items: center; gap: 6px; padding: 6px 14px; color: var(--muted); font-size: var(--fs-100); font-weight: 600; background: #f8faf8; border-top: 1px solid var(--line); }
+.timeline-viewport-hint svg { width: 12px; flex: 0 0 auto; }
 .timeline { position: relative; min-width: 920px; }
 .timeline-header, .timeline-row { display: grid; grid-template-columns: var(--timeline-label-width) 1fr; }
 .timeline-header { position: sticky; top: 0; z-index: 4; min-height: 62px; background: #fafbfa; border-bottom: 1px solid var(--line); }

@@ -3,7 +3,7 @@ const AS_OF_DATE = new Date("2025-09-10T12:00:00");
 const AS_OF_ISO = "2025-09-10";
 // Bumped when the seed portfolio changes shape, so a browser holding the previous
 // seed picks up the new one instead of silently keeping stale projects.
-const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1" };
+const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1" };
 const AS_OF_LONG = "September 10, 2025";
 const AUTH_STORAGE_KEY = "platforms-branch-session";
 const DEFAULT_PASSWORD = "1234";
@@ -1177,6 +1177,34 @@ function applyTimelineLabelWidth(width, persist = true) {
   });
   if (persist) localStorage.setItem(STORAGE.labelWidth, String(clamped));
   return clamped;
+}
+
+const TIMELINE_VIEWPORT = { min: 220, max: 1400 };
+
+function storedTimelineViewport() {
+  const stored = Number(localStorage.getItem(STORAGE.viewport));
+  if (!Number.isFinite(stored) || stored <= 0) return null;
+  return Math.min(TIMELINE_VIEWPORT.max, Math.max(TIMELINE_VIEWPORT.min, Math.round(stored)));
+}
+
+function initTimelineViewports() {
+  const stored = storedTimelineViewport();
+  document.querySelectorAll(".roadmap-scroll").forEach(view => {
+    if (stored) view.style.height = `${stored}px`;
+    if (typeof ResizeObserver !== "function") return;
+    let timer = null;
+    new ResizeObserver(entries => {
+      const height = Math.round(entries[0].contentRect.height);
+      if (!height || height === storedTimelineViewport()) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        localStorage.setItem(STORAGE.viewport, String(height));
+        document.querySelectorAll(".roadmap-scroll").forEach(other => {
+          if (other !== view) other.style.height = `${height}px`;
+        });
+      }, 250);
+    }).observe(view);
+  });
 }
 
 function timelineResizerMarkup(label) {
@@ -3164,6 +3192,7 @@ populateTeamFilters();
 populateFiscalYearFilters();
 populateResourceFilters();
 applyTimelineLabelWidth(timelineLabelWidth(), false);
+initTimelineViewports();
 reconcileTeamProjectIds();
 populateProjectUnitOptions(projectUnits[0]);
 populateProjectSubUnitOptions(projectUnits[0], "");
