@@ -990,3 +990,19 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
   .phase-row { grid-template-columns: 1fr 1fr; }
   .phase-row .phase-remove { grid-column: 1 / -1; width: 100%; }
 }
+
+/* Project Phases on the project overview page */
+.detail-phase-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.detail-phase-card { display: flex; flex-direction: column; gap: 8px; padding: 15px; color: inherit; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.detail-phase-card:hover { border-color: var(--green); box-shadow: var(--shadow); }
+.detail-phase-card:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.detail-phase-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.detail-phase-card .phase-index { display: grid; width: 26px; height: 26px; place-items: center; color: var(--green); font-family: "Manrope", sans-serif; font-size: var(--fs-200); font-weight: 800; background: var(--green-soft); border-radius: var(--radius-sm); }
+.detail-phase-card h3 { margin: 2px 0 0; font-size: var(--fs-300); line-height: 1.35; }
+.detail-phase-card p { margin: 0; color: var(--ink-soft); font-size: var(--fs-200); }
+.detail-phase-card .card-link { margin-top: auto; }
+.detail-phase-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); }
+.detail-phase-empty p { margin: 0; color: var(--ink-soft); font-size: var(--fs-300); }
+.phase-row.phase-row-focused { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+@media (max-width: 1180px) { .detail-phase-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 820px) { .detail-phase-grid { grid-template-columns: 1fr; } }

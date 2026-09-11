@@ -1192,8 +1192,10 @@ function renderProjectPage(projectId) {
           <div class="progress-scale"><span>Started ${formatDate(project.start)}</span><span>Target ${formatDate(project.end)}</span></div>
         </section>
         <section class="project-page-section">
-          <div class="section-heading-row"><div><span class="section-kicker">Execution</span><h2>Workstreams</h2></div><span class="detail-count">${workstreams.length} workstreams</span></div>
-          <div class="detail-workstream-grid">${workstreams.map(stream => `<button class="detail-workstream-card" data-page-workstream="${stream.id}" data-project-id="${project.id}" type="button"><div class="detail-workstream-top"><span class="workstream-status">${iconMarkup(stream.progress >= 90 ? "circle-check" : "layers-3")}</span><span class="risk-pill ${stream.progress < 40 ? "risk-high" : stream.progress < 70 ? "risk-medium" : "risk-low"}">${stream.progress < 40 ? "Needs focus" : stream.progress < 70 ? "In progress" : "Healthy"}</span></div><h3>${stream.name}</h3><p>${stream.tasks.length} tasks assigned to ${stream.owner}</p><div class="project-card-progress"><div class="progress-track"><span style="width:${stream.progress}%"></span></div><strong>${stream.progress}%</strong></div><span class="card-link">View task details ${iconMarkup("arrow-right")}</span></button>`).join("")}</div>
+          <div class="section-heading-row"><div><span class="section-kicker">Execution</span><h2>Project Phases</h2></div><span class="detail-count">${project.phases.length} ${project.phases.length === 1 ? "phase" : "phases"}</span></div>
+          ${project.phases.length
+            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p><span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
+            : `<div class="detail-phase-empty"><p>No phases recorded for this project yet.</p><button class="secondary-button" data-edit-phase="new" data-project-id="${project.id}" type="button">${iconMarkup("plus")}Add a phase</button></div>`}
         </section>
       </div>
       <aside class="project-detail-side">
@@ -2757,6 +2759,7 @@ function openEditProjectModal(projectId) {
   populateProjectUnitOptions(project.unit);
   populateProjectSubUnitOptions(project.unit, project.subUnit);
   renderPhaseRows(project.phases);
+  document.querySelectorAll(".phase-row-focused").forEach(row => row.classList.remove("phase-row-focused"));
   populateProjectTeamOptions(project.team);
   const values = { name: project.name, unit: project.unit, team: project.team, subUnit: project.subUnit || "", owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
   Object.entries(values).forEach(([field, value]) => { elements.form.elements[field].value = value; });
@@ -3228,6 +3231,21 @@ document.querySelector("#closeStrategyModal").addEventListener("click", () => do
 document.querySelector("#cancelStrategyModal").addEventListener("click", () => document.querySelector("#strategyModal").close());
 document.querySelector("#strategyForm").addEventListener("submit", submitStrategy);
 document.querySelector("#roadmapAddProject").addEventListener("click", openModal);
+document.addEventListener("click", event => {
+  const card = event.target.closest("[data-edit-phase]");
+  if (!card) return;
+  openEditProjectModal(card.dataset.projectId);
+  if (card.dataset.editPhase === "new") {
+    document.querySelector("#addPhaseButton").click();
+    return;
+  }
+  const row = document.querySelectorAll("#phaseRows .phase-row")[Number(card.dataset.editPhase)];
+  if (!row) return;
+  row.classList.add("phase-row-focused");
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.querySelector(".phase-name")?.focus();
+});
+
 document.querySelector("#addPhaseButton").addEventListener("click", () => {
   document.querySelector("#phaseRows").insertAdjacentHTML("beforeend", phaseRowMarkup());
   updatePhaseEmptyState();
