@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Aster Project Operations dashboard and roadmap">
-  <title>Aster | Project Operations</title>
+  <meta name="description" content="Platforms Branch Project &amp; Roadmap App — portfolio dashboard and roadmap">
+  <title>Platforms Branch Project &amp; Roadmap App</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -115,6 +115,11 @@
               <label class="fiscal-selector"><span>Fiscal year</span><select id="projectFiscalYear" aria-label="Project fiscal year"></select></label>
               <span class="live-pill"><span></span>Live portfolio</span>
               <span id="currentDate"></span>
+              <div class="workspace-export-actions view-export-actions">
+                <button class="secondary-button" id="exportProjectsExcel" type="button"><i data-lucide="file-spreadsheet"></i>Excel</button>
+                <button class="secondary-button" id="exportProjectsPdf" type="button"><i data-lucide="file-text"></i>PDF</button>
+                <button class="secondary-button" id="exportProjectsPptx" type="button"><i data-lucide="presentation"></i>PowerPoint</button>
+              </div>
             </div>
           </div>
 
@@ -146,11 +151,12 @@
 
             <article class="panel capacity-panel">
               <div class="panel-heading">
-                <div><span class="section-kicker">Team capacity</span><h2>Allocation this cycle</h2></div>
-                <span class="capacity-value">82%</span>
+                <div><span class="section-kicker">Unit mix</span><h2>Projects by unit</h2></div>
+                <span class="capacity-value" id="capacityValue"></span>
               </div>
               <div class="capacity-chart" id="capacityChart"></div>
-              <div class="capacity-note"><i data-lucide="info"></i><span>Design is approaching its allocation threshold.</span></div>
+              <div class="unit-mix-legend" id="capacityLegend"></div>
+              <div class="capacity-note"><i data-lucide="info"></i><span id="capacityNote"></span></div>
             </article>
           </div>
 
@@ -165,6 +171,11 @@
                     <option value="At risk">At risk</option>
                     <option value="Off track">Off track</option>
                     <option value="Planned">Planned</option>
+                    <option value="Completed">Completed</option>
+                    <option value="In-flight">In-flight</option>
+                    <option value="Next">Next</option>
+                    <option value="Later">Later</option>
+                    <option value="Pause">Pause</option>
                   </select>
                   <select id="teamFilter" aria-label="Filter by team"><option value="all">All teams</option></select>
                   <select id="unitFilter" aria-label="Filter by unit"><option value="all">All units</option></select>
@@ -203,26 +214,54 @@
             <div class="heading-actions">
               <span class="roadmap-fy-badge"><small>Planning horizon</small><strong id="roadmapFiscalLabel">FY27</strong></span>
               <button class="secondary-button" id="todayButton" type="button"><i data-lucide="locate-fixed"></i>Today</button>
+              <button class="secondary-button" id="exportRoadmapExcel" type="button"><i data-lucide="file-spreadsheet"></i>Excel</button>
+              <button class="secondary-button" id="exportRoadmapPdf" type="button"><i data-lucide="file-text"></i>PDF</button>
+              <button class="secondary-button" id="exportRoadmapPptx" type="button"><i data-lucide="presentation"></i>PowerPoint</button>
               <button class="primary-button" id="roadmapAddProject" type="button"><i data-lucide="plus"></i>Add initiative</button>
             </div>
           </div>
 
+          <section class="roadmap-vision" aria-labelledby="roadmapVisionTitle">
+            <div class="roadmap-vision-head">
+              <div><span class="section-kicker">Guiding vision</span><h2 id="roadmapVisionTitle">Where this portfolio is heading</h2></div>
+              <button class="secondary-button" id="editStrategyButton" type="button"><i data-lucide="pencil-line"></i>Edit strategy</button>
+            </div>
+            <p class="roadmap-vision-statement" id="roadmapVisionText"></p>
+          </section>
+
+          <div class="roadmap-strategy-grid">
+            <article class="panel goal-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Strategic goals</span><h2>Outcomes this roadmap serves</h2></div><span class="count-badge" id="roadmapGoalCount">0</span></div>
+              <div class="goal-list" id="roadmapGoals"></div>
+            </article>
+            <article class="panel success-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Metrics for success</span><h2>How we know it is working</h2></div><i data-lucide="target"></i></div>
+              <div class="success-metrics" id="roadmapMetrics"></div>
+            </article>
+          </div>
+
+          <div class="section-heading-row roadmap-glance-heading">
+            <div><span class="section-kicker">Portfolio at a glance</span><h2>Initiative counts this horizon</h2></div>
+          </div>
           <div class="roadmap-summary" id="roadmapSummary"></div>
 
           <section class="roadmap-panel">
             <div class="roadmap-toolbar">
               <div class="roadmap-filters">
-                <div class="segmented-text" id="roadmapScale">
-                  <button data-scale="month" type="button" aria-pressed="false">Month</button>
-                  <button class="active" data-scale="quarter" type="button" aria-pressed="true">Quarter</button>
-                  <button data-scale="year" type="button" aria-pressed="false">Year</button>
-                </div>
+                <div class="segmented-text quarter-picker" id="roadmapQuarterPicker" role="group" aria-label="Fiscal quarter"></div>
                 <span class="roadmap-period-label" id="roadmapPeriodLabel"></span>
                 <select id="roadmapFiscalYear" aria-label="Roadmap fiscal year"></select>
                 <select id="roadmapTeamFilter" aria-label="Filter roadmap by team"><option value="all">All teams</option></select>
               </div>
-              <div class="roadmap-legend"><span><i class="legend-dot active-dot"></i>Active</span><span><i class="legend-dot planned-dot"></i>Planned</span><span><i class="milestone-shape"></i>Milestone</span></div>
+              <div class="roadmap-legend">
+                <span><i class="legend-dot" style="background:var(--green)"></i>In delivery</span>
+                <span><i class="legend-dot" style="background:var(--red)"></i>Needs attention</span>
+                <span><i class="legend-dot legend-hatch"></i>Upcoming</span>
+                <span><i class="legend-dot" style="background:var(--muted)"></i>Completed</span>
+                <span><i class="milestone-shape"></i>Milestone</span>
+              </div>
             </div>
+            <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span><strong>Q = fiscal quarter.</strong> The fiscal year runs April 1 to March 31 - Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec, Q4 Jan-Mar - and the four quarters roll up into <strong id="roadmapFiscalNoteYear">FY27</strong>.</span></p>
             <div class="roadmap-scroll" id="roadmapScroll">
               <div class="timeline" id="timeline"></div>
             </div>
@@ -234,14 +273,9 @@
               <div id="milestoneList" class="milestone-list"></div>
             </article>
             <article class="panel dependency-panel">
-              <div class="panel-heading"><div><span class="section-kicker">Cross-team</span><h2>Key dependencies</h2></div><span class="count-badge">3</span></div>
-              <div class="dependency-flow">
-                <div><span class="project-icon coral">WL</span><strong>Web launch</strong></div><i data-lucide="arrow-right"></i><div><span class="project-icon teal">ID</span><strong>Identity</strong></div>
-              </div>
-              <div class="dependency-flow">
-                <div><span class="project-icon amber">MP</span><strong>Mobile app</strong></div><i data-lucide="arrow-right"></i><div><span class="project-icon blue">DP</span><strong>Data platform</strong></div>
-              </div>
-              <p class="dependency-note"><i data-lucide="circle-check"></i>All critical dependencies have owners.</p>
+              <div class="panel-heading"><div><span class="section-kicker">Cross-initiative</span><h2>Schedule contention</h2></div><span class="count-badge" id="contentionCount">0</span></div>
+              <div id="contentionFlows"></div>
+              <p class="dependency-note" id="contentionNote"></p>
             </article>
           </div>
         </section>
@@ -267,7 +301,7 @@
               <label><span>Reporting period</span><select id="reportPeriod"><option value="quarter">Current quarter</option><option value="month">Current month</option><option value="year">Fiscal year</option></select></label>
               <label><span>Fiscal year</span><select id="reportFiscalYear" aria-label="Report fiscal year"></select></label>
               <label><span>Team</span><select id="reportTeam"><option value="all">All teams</option></select></label>
-              <label><span>Status</span><select id="reportStatus"><option value="all">All statuses</option><option>On track</option><option>At risk</option><option>Off track</option><option>Planned</option></select></label>
+              <label><span>Status</span><select id="reportStatus"><option value="all">All statuses</option><option>On track</option><option>At risk</option><option>Off track</option><option>Planned</option><option>Completed</option><option>In-flight</option><option>Next</option><option>Later</option><option>Pause</option></select></label>
             </div>
           </section>
 
@@ -280,7 +314,7 @@
 
           <div class="report-analysis-grid">
             <article class="panel report-chart-panel">
-              <div class="panel-heading"><div><span class="section-kicker">Portfolio health</span><h2>Status distribution</h2></div><span class="report-standard">RAG status</span></div>
+              <div class="panel-heading"><div><span class="section-kicker">Portfolio health</span><h2>Status distribution</h2></div><span class="report-standard">Delivery status</span></div>
               <div id="reportStatusChart"></div>
             </article>
             <article class="panel report-chart-panel">
@@ -302,7 +336,7 @@
 
           <section class="report-register" aria-labelledby="reportRegisterTitle">
             <div class="section-heading-row"><div><span class="section-kicker">Control register</span><h2 id="reportRegisterTitle">Project performance detail <span id="reportProjectCount"></span></h2></div><span class="report-note"><i data-lucide="shield-check"></i>Source: live portfolio data</span></div>
-            <div class="project-table-wrap"><table class="project-table report-table"><thead><tr><th>Project</th><th>RAG status</th><th>Progress</th><th>Approx. cost</th><th>Schedule variance</th><th>Risk</th><th>Next milestone</th><th>Forecast</th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
+            <div class="project-table-wrap"><table class="project-table report-table"><thead><tr><th>Project</th><th>Status</th><th>Progress</th><th>Approx. cost</th><th>Schedule variance</th><th>Risk</th><th>Next milestone</th><th>Forecast</th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
           </section>
         </section>
 
@@ -367,6 +401,22 @@
     <div id="drawerContent"></div>
   </aside>
 
+  <dialog id="strategyModal" class="project-modal strategy-modal">
+    <form method="dialog" id="strategyForm">
+      <div class="modal-header">
+        <div><span class="section-kicker">Roadmap strategy</span><h2>Vision and strategic goals</h2><p class="modal-description">The vision and goals shown at the top of the roadmap. Goals are tracked manually.</p></div>
+        <button class="icon-button" id="closeStrategyModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form-grid">
+        <div class="form-section-title full-field"><span>01</span><div><strong>Guiding vision</strong><small>One statement of where the portfolio is heading</small></div></div>
+        <label class="full-field">Vision statement<textarea name="vision" rows="3" maxlength="260" required placeholder="Deliver ..."></textarea></label>
+        <div class="form-section-title full-field"><span>02</span><div><strong>Strategic goals</strong><small>Up to four outcomes, each with a target</small></div></div>
+        <div class="full-field" id="strategyGoalFields"></div>
+      </div>
+      <div class="modal-footer"><button class="text-button" id="cancelStrategyModal" type="button">Cancel</button><button class="primary-button" id="saveStrategyButton" type="submit"><i data-lucide="save"></i><span>Save strategy</span></button></div>
+    </form>
+  </dialog>
+
   <dialog id="projectModal" class="project-modal">
     <form method="dialog" id="projectForm">
       <div class="modal-header">
@@ -377,12 +427,13 @@
         <div class="form-section-title full-field"><span>01</span><div><strong>Project identity</strong><small>Information shown across portfolio views</small></div></div>
         <label>Project name<input name="name" required maxlength="60" placeholder="e.g. Partner portal launch"></label>
         <label>Unit<select name="unit" required><option>Identity and Access Management</option><option>Alberta Wallet and Credentials</option><option>Platform Operations</option><option>Alberta Payments</option><option>Web Services</option><option>CRA Income and Data Verification Services</option></select></label>
+        <label>Team<select name="team" required aria-describedby="teamFieldHint"></select><small class="field-hint" id="teamFieldHint">Teams come from the Team directory in the left navigation</small></label>
         <label>Owner<input name="owner" required maxlength="40" placeholder="Full name"></label>
         <label class="full-field">Objective<textarea name="objective" rows="3" required maxlength="180" placeholder="What measurable outcome will this project deliver?"></textarea></label>
         <div class="form-section-title full-field"><span>02</span><div><strong>Delivery controls</strong><small>Status, confidence, and reporting baseline</small></div></div>
         <label>Start date<input name="start" type="date" required></label>
         <label>Target date<input name="end" type="date" required></label>
-        <label>Status<select name="status"><option>Planned</option><option>On track</option><option>At risk</option><option>Off track</option></select></label>
+        <label>Status<select name="status"><option>Planned</option><option>On track</option><option>At risk</option><option>Off track</option><option>Completed</option><option>In-flight</option><option>Next</option><option>Later</option><option>Pause</option></select></label>
         <label>Progress (%)<input name="progress" type="number" min="0" max="100" value="5" required></label>
         <label>Priority<select name="priority"><option>High</option><option selected>Medium</option><option>Low</option></select></label>
         <label>Risk level<select name="risk"><option>Low</option><option selected>Medium</option><option>High</option></select></label>
@@ -406,16 +457,10 @@
       <div class="form-grid team-form-grid">
         <div class="form-section-title full-field"><span>01</span><div><strong>Team identity</strong><small>Name the operating unit</small></div></div>
         <label class="full-field">Team Name<input name="teamName" required maxlength="60" placeholder="e.g. Team 11"></label>
-        <div class="form-section-title full-field"><span>02</span><div><strong>Accountable leadership</strong><small>Business, solution, and executive ownership</small></div></div>
+        <div class="form-section-title full-field"><span>02</span><div><strong>Accountable leadership</strong><small>Product and solution ownership</small></div></div>
         <label>Product Owner<input name="productOwner" maxlength="60" placeholder="Optional"></label>
         <label>Solution Sponsor<input name="solutionSponsor" maxlength="60" placeholder="Optional"></label>
-        <label class="full-field">Executive Sponsor<input name="executiveSponsor" maxlength="60" placeholder="Optional"></label>
-        <div class="form-section-title full-field"><span>03</span><div><strong>Business stakeholders</strong><small>Stakeholder representation and business sponsorship</small></div></div>
-        <label>Stakeholder 1<input name="stakeholder1" maxlength="60" placeholder="Optional"></label>
-        <label>Stakeholder 2<input name="stakeholder2" maxlength="60" placeholder="Optional"></label>
-        <label>Business Sponsor<input name="businessSponsor" maxlength="60" placeholder="Optional"></label>
-        <label>Business Executive<input name="businessExecutive" maxlength="60" placeholder="Optional"></label>
-        <div class="form-section-title full-field"><span>04</span><div><strong>Delivery team</strong><small>Core technical and experience roles</small></div></div>
+        <div class="form-section-title full-field"><span>03</span><div><strong>Delivery team</strong><small>Core technical and experience roles</small></div></div>
         <label>Developer<input name="developer" maxlength="60" placeholder="Optional"></label>
         <label>Architect<input name="architect" maxlength="60" placeholder="Optional"></label>
         <label>Dev Lead<input name="devLead" maxlength="60" placeholder="Optional"></label>
@@ -440,6 +485,7 @@
         <label>Assigned Team<select name="assignedTeam" required></select></label>
         <label>Allocation (%)<input name="allocation" type="number" min="0" max="100" value="100" required></label>
         <label>Availability<select name="availability" required><option>Available</option><option selected>Allocated</option><option>Unavailable</option></select></label>
+        <p class="form-warning full-field" id="resourceMoveWarning" role="status" aria-live="polite" hidden></p>
       </div>
       <div class="modal-footer"><button class="text-button" id="cancelResourceModal" type="button">Cancel</button><button class="primary-button" id="saveResourceButton" type="submit"><i data-lucide="user-round-plus"></i><span>Create resource</span></button></div>
     </form>

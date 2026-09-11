@@ -5,9 +5,8 @@ const DEFAULT_PASSWORD = "1234";
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const colors = ["teal", "coral", "amber", "blue"];
 const teamRoleFields = [
-  ["productOwner", "Product Owner"], ["solutionSponsor", "Solution Sponsor"], ["executiveSponsor", "Executive Sponsor"],
-  ["stakeholder1", "Stakeholder 1"], ["stakeholder2", "Stakeholder 2"], ["businessSponsor", "Business Sponsor"],
-  ["businessExecutive", "Business Executive"], ["developer", "Developer"], ["architect", "Architect"], ["devLead", "Dev Lead"],
+  ["productOwner", "Product Owner"], ["solutionSponsor", "Solution Sponsor"],
+  ["developer", "Developer"], ["architect", "Architect"], ["devLead", "Dev Lead"],
   ["scrumMaster", "Scrum Master"], ["projectManager", "Project Manager"], ["businessAnalyst", "Business Analyst"],
   ["frontEndDesigner", "Front End Designer"], ["serviceDesigner", "Service Designer"], ["qa", "QA"]
 ];
@@ -15,7 +14,24 @@ const resourceRoles = ["Product Owner", "Scrum Master", "Project Manager", "Deve
 const projectUnits = ["Identity and Access Management", "Alberta Wallet and Credentials", "Platform Operations", "Alberta Payments", "Web Services", "CRA Income and Data Verification Services"];
 const unitTeamAssignments = { "Identity and Access Management": "Team 7", "Alberta Wallet and Credentials": "Team 1", "Platform Operations": "Team 2", "Alberta Payments": "Team 5", "Web Services": "Team 3", "CRA Income and Data Verification Services": "Team 8" };
 const projectTemplateColumns = ["Project Name", "Team", "Unit", "Owner", "Objective", "Start Date", "Target Date", "Status", "Progress (%)", "Priority", "Risk Level", "Approx. Cost in dollars", "Schedule Variance (days)", "Contributors", "Milestone Name", "Milestone Date"];
-const projectTemplateTeams = Array.from({ length: 10 }, (_, index) => `Team ${index + 1}`);
+const projectStatuses = ["Planned", "On track", "At risk", "Off track", "Completed", "In-flight", "Next", "Later", "Pause"];
+const statusGroups = {
+  healthy: ["On track", "In-flight"],
+  attention: ["At risk", "Off track", "Pause"],
+  upcoming: ["Planned", "Next", "Later"],
+  done: ["Completed"]
+};
+const deliveryStatuses = [...statusGroups.healthy, ...statusGroups.attention];
+const unitMixBands = [
+  { key: "delivery", label: "In delivery", color: "var(--green)", statuses: statusGroups.healthy },
+  { key: "attention", label: "Needs attention", color: "var(--red)", statuses: statusGroups.attention },
+  { key: "upcoming", label: "Upcoming", color: "var(--blue)", statuses: statusGroups.upcoming },
+  { key: "done", label: "Completed", color: "var(--muted)", statuses: statusGroups.done }
+];
+const statusLegendColors = {
+  "On track": "var(--green)", "In-flight": "var(--blue)", "At risk": "var(--amber)", "Off track": "var(--red)",
+  "Pause": "var(--coral)", "Planned": "var(--blue)", "Next": "var(--amber)", "Later": "var(--muted)", "Completed": "var(--green)"
+};
 
 const seedProjects = [
   { id: 1, name: "Customer portal redesign", code: "CPR", team: "Design", owner: "Maya Chen", status: "On track", progress: 72, start: "2026-07-15", end: "2026-11-20", risk: "Low", priority: "High", approxCost: 480000, scheduleVariance: 0, objective: "Modernize the customer service experience and reduce support effort.", milestone: "Design handoff", milestoneDate: "2026-10-09", members: ["MC", "JR", "AN", "SK"] },
@@ -40,8 +56,33 @@ const seedTeams = [
   { id: 10, name: "Team 10", specialty: "Quality and Release", lead: "Daniel Wu", capacity: 74, headcount: 9, projectIds: [2, 3, 4], members: ["Daniel Wu", "Tariq Dean", "Owen Price", "Will Young"] }
 ];
 
-let projects = loadProjects();
+const seedRoadmapStrategy = {
+  vision: "Deliver trusted, reusable digital platforms so every Government of Alberta service team can build once and serve Albertans everywhere.",
+  goals: [
+    { id: 1, title: "Reusable platform adoption", outcome: "Service teams build on shared identity, wallet and payments platforms instead of bespoke stacks.", target: 80, current: 55, unit: "%" },
+    { id: 2, title: "Delivery predictability", outcome: "Initiatives land inside their committed quarter with no unplanned schedule slip.", target: 90, current: 71, unit: "%" },
+    { id: 3, title: "Service reach", outcome: "Albertans can complete priority journeys end to end on a digital channel.", target: 12, current: 7, unit: " journeys" }
+  ]
+};
+
+function loadRoadmapStrategy() {
+  const fallback = { vision: seedRoadmapStrategy.vision, goals: seedRoadmapStrategy.goals.map(goal => ({ ...goal })) };
+  try {
+    const saved = JSON.parse(localStorage.getItem("aster-roadmap"));
+    if (!saved || typeof saved.vision !== "string") return fallback;
+    return { vision: saved.vision, goals: Array.isArray(saved.goals) ? saved.goals : [] };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveRoadmapStrategy() {
+  localStorage.setItem("aster-roadmap", JSON.stringify(roadmapStrategy));
+}
+
+let roadmapStrategy = loadRoadmapStrategy();
 let teamDirectory = loadTeams();
+let projects = loadProjects();
 let activeView = "projects";
 let activeLayout = "table";
 let query = "";
@@ -49,7 +90,7 @@ let statusFilter = "all";
 let teamFilter = "all";
 let unitFilter = "all";
 let roadmapTeam = "all";
-let roadmapScaleMode = "quarter";
+let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
 let selectedFiscalYear = getFiscalYear(AS_OF_DATE);
 let reportTeam = "all";
 let reportStatus = "all";
@@ -57,6 +98,7 @@ let reportPeriod = "quarter";
 let teamQuery = "";
 let teamHealthFilter = "all";
 let teamPendingDeletion = null;
+let projectTeamTouched = false;
 let teamBeingEdited = null;
 let resourceQuery = "";
 let resourceRoleFilter = "all";
@@ -70,11 +112,11 @@ let drawerState = null;
 
 const drilldownDefinitions = {
   active: { title: "Active projects", description: "All initiatives currently represented in the portfolio.", icon: "folder-kanban", filter: () => true },
-  healthy: { title: "On-track delivery", description: "Initiatives progressing within their agreed delivery tolerance.", icon: "circle-check", filter: project => project.status === "On track" },
-  attention: { title: "Projects needing attention", description: "Initiatives with material schedule or delivery risk.", icon: "triangle-alert", filter: project => ["At risk", "Off track"].includes(project.status) },
+  healthy: { title: "On-track delivery", description: "Initiatives progressing within their agreed delivery tolerance.", icon: "circle-check", filter: project => statusGroups.healthy.includes(project.status) },
+  attention: { title: "Projects needing attention", description: "Initiatives with material schedule or delivery risk.", icon: "triangle-alert", filter: project => statusGroups.attention.includes(project.status) },
   progress: { title: "Portfolio progress", description: "Progress distribution across all active initiatives.", icon: "gauge", filter: () => true },
   nearing: { title: "Nearing completion", description: "Initiatives at or above 75% overall completion.", icon: "badge-check", filter: project => project.progress >= 75 },
-  planned: { title: "Planned initiatives", description: "Approved work scheduled to begin next.", icon: "calendar-clock", filter: project => project.status === "Planned" },
+  planned: { title: "Planned initiatives", description: "Approved work not yet in delivery - planned, next, or later.", icon: "calendar-clock", filter: project => statusGroups.upcoming.includes(project.status) },
   milestones: { title: "Upcoming milestones", description: "Portfolio milestones scheduled after the current reporting date.", icon: "flag", filter: project => new Date(project.milestoneDate) >= new Date("2026-09-10") }
 };
 
@@ -89,6 +131,9 @@ const elements = {
   attentionList: document.querySelector("#attentionList"),
   attentionCount: document.querySelector("#attentionCount"),
   capacityChart: document.querySelector("#capacityChart"),
+  capacityValue: document.querySelector("#capacityValue"),
+  capacityLegend: document.querySelector("#capacityLegend"),
+  capacityNote: document.querySelector("#capacityNote"),
   projectCount: document.querySelector("#projectCount"),
   tableBody: document.querySelector("#projectTableBody"),
   cardLayout: document.querySelector("#cardLayout"),
@@ -201,8 +246,24 @@ function normalizeProjectUnit(project) {
   const teamDefaults = { Product: "Alberta Wallet and Credentials", Engineering: "Platform Operations", Design: "Web Services", Marketing: "Alberta Payments", Operations: "Platform Operations" };
   const { code: _legacyCode, ...projectWithoutCode } = project;
   const unit = projectUnits.includes(project.unit) ? project.unit : projectDefaults[project.name] || teamDefaults[project.team] || "Platform Operations";
-  const team = /^Team \d+$/.test(project.team || "") ? project.team : unitTeamAssignments[unit];
+  const team = directoryTeamNames().includes(project.team) ? project.team : defaultTeamForUnit(unit);
   return { ...projectWithoutCode, code: initials(project.name), unit, team };
+}
+
+function directoryTeamNames() {
+  return teamDirectory.map(team => team.name);
+}
+
+function defaultTeamForUnit(unit) {
+  const names = directoryTeamNames();
+  const preferred = unitTeamAssignments[unit];
+  return names.includes(preferred) ? preferred : names[0] || preferred;
+}
+
+function populateProjectTeamOptions(selected) {
+  const names = directoryTeamNames();
+  elements.form.elements.team.innerHTML = names.map(name => `<option>${name}</option>`).join("");
+  if (names.includes(selected)) elements.form.elements.team.value = selected;
 }
 
 function saveProjects() {
@@ -219,7 +280,10 @@ function loadTeams() {
 }
 
 function normalizeTeamRoles(team) {
-  if (team.roles) return team;
+  if (team.roles) {
+    const roles = Object.fromEntries(teamRoleFields.map(([, label]) => [label, team.roles[label] || ""]));
+    return { ...team, roles };
+  }
   const members = team.members?.length ? team.members : [team.lead];
   const roles = Object.fromEntries(teamRoleFields.map(([, label], index) => [label, index === 0 ? team.lead : members[index % members.length]]));
   return { ...team, roles };
@@ -305,14 +369,14 @@ async function buildProjectIntakeTemplate() {
   const textValidation = (title, maximum, allowBlank = false) => ({ type: "textLength", operator: "between", allowBlank, formulae: [allowBlank ? 0 : 1, maximum], showErrorMessage: true, errorTitle: `Invalid ${title}`, error: `${title} must contain no more than ${maximum} characters.`, showInputMessage: true, promptTitle: title, prompt: allowBlank ? `Optional; enter up to ${maximum} characters.` : `Enter up to ${maximum} characters.` });
   for (let row = 2; row <= 1000; row += 1) {
     intake.getCell(`A${row}`).dataValidation = textValidation("Project Name", 60);
-    intake.getCell(`B${row}`).dataValidation = listValidation(projectTemplateTeams, "Team");
+    intake.getCell(`B${row}`).dataValidation = listValidation(directoryTeamNames(), "Team");
     intake.getCell(`C${row}`).dataValidation = listValidation(projectUnits, "Unit");
     intake.getCell(`D${row}`).dataValidation = textValidation("Owner", 40);
     intake.getCell(`E${row}`).dataValidation = textValidation("Objective", 180);
     ["F", "G"].forEach(column => { intake.getCell(`${column}${row}`).numFmt = "mm/dd/yyyy"; intake.getCell(`${column}${row}`).dataValidation = dateValidation(column === "F" ? "Start Date" : "Target Date"); });
     intake.getCell(`P${row}`).numFmt = "yyyy-mm-dd";
     intake.getCell(`P${row}`).dataValidation = dateValidation("Milestone Date");
-    intake.getCell(`H${row}`).dataValidation = listValidation(["Planned", "On track", "At risk", "Off track"], "Status");
+    intake.getCell(`H${row}`).dataValidation = listValidation(projectStatuses, "Status");
     intake.getCell(`I${row}`).dataValidation = listValidation(Array.from({ length: 21 }, (_, index) => index * 5), "Progress (%)");
     intake.getCell(`J${row}`).dataValidation = listValidation(["High", "Medium", "Low"], "Priority");
     intake.getCell(`K${row}`).dataValidation = listValidation(["Low", "Medium", "High"], "Risk Level");
@@ -374,9 +438,9 @@ function templateRowToProject(row, rowNumber) {
   const start = normalizeTemplateDate(row["Start Date"]);
   const end = normalizeTemplateDate(row["Target Date"]);
   const milestoneDate = normalizeTemplateDate(row["Milestone Date"]);
-  if (!projectTemplateTeams.includes(String(row.Team || "").trim())) errors.push("Team must be Team 1 through Team 10");
+  if (!directoryTeamNames().includes(String(row.Team || "").trim())) errors.push("Team must match a team in the team directory");
   if (!projectUnits.includes(String(row.Unit || "").trim())) errors.push("Unit must be selected from the approved list");
-  if (!["Planned", "On track", "At risk", "Off track"].includes(status)) errors.push("Status is invalid");
+  if (!projectStatuses.includes(status)) errors.push("Status is invalid");
   if (!["High", "Medium", "Low"].includes(priority)) errors.push("Priority is invalid");
   if (!["High", "Medium", "Low"].includes(risk)) errors.push("Risk Level is invalid");
   if (!Number.isFinite(progress) || progress < 0 || progress > 100 || progress % 5 !== 0) errors.push("Progress must be between 0 and 100 in 5% increments");
@@ -456,6 +520,33 @@ function getFiscalYear(date) {
   return date.getMonth() >= 3 ? date.getFullYear() + 1 : date.getFullYear();
 }
 
+const FISCAL_QUARTERS = [
+  { quarter: 1, months: "Apr-Jun" },
+  { quarter: 2, months: "Jul-Sep" },
+  { quarter: 3, months: "Oct-Dec" },
+  { quarter: 4, months: "Jan-Mar" }
+];
+
+function fiscalQuarterOf(date) {
+  return Math.floor(((date.getMonth() - 3 + 12) % 12) / 3);
+}
+
+function fiscalQuarterBounds(index, year = selectedFiscalYear) {
+  const start = new Date(year - 1, 3 + index * 3, 1, 12);
+  const end = new Date(start.getFullYear(), start.getMonth() + 3, 0, 12);
+  return { start, end };
+}
+
+function quarterBands(range) {
+  return FISCAL_QUARTERS.map((entry, index) => {
+    const bounds = fiscalQuarterBounds(index);
+    const from = bounds.start > range.start ? bounds.start : range.start;
+    const to = bounds.end < range.end ? bounds.end : range.end;
+    const days = Math.round((to - from) / DAY) + 1;
+    return { ...entry, days, current: index === roadmapQuarter };
+  }).filter(band => band.days > 0);
+}
+
 function fiscalYearLabel(year) {
   return `FY${String(year).slice(-2)}`;
 }
@@ -495,8 +586,8 @@ function renderMetrics() {
   const fiscalProjects = getFiscalProjects();
   const total = fiscalProjects.length;
   const teamCount = new Set(fiscalProjects.map(project => project.team)).size;
-  const onTrack = fiscalProjects.filter(project => project.status === "On track").length;
-  const atRisk = fiscalProjects.filter(project => ["At risk", "Off track"].includes(project.status)).length;
+  const onTrack = fiscalProjects.filter(project => statusGroups.healthy.includes(project.status)).length;
+  const atRisk = fiscalProjects.filter(project => statusGroups.attention.includes(project.status)).length;
   const average = total ? Math.round(fiscalProjects.reduce((sum, project) => sum + project.progress, 0) / total) : 0;
   const metrics = [
     { key: "active", label: "Active projects", value: total, change: "+2 this cycle", caption: `Across ${teamCount} delivery ${teamCount === 1 ? "team" : "teams"}`, icon: "folder-kanban", color: "#176b53", tint: "#dceee7" },
@@ -514,41 +605,84 @@ function renderMetrics() {
 
 function renderHealth() {
   const fiscalProjects = getFiscalProjects();
-  const counts = {
-    "On track": fiscalProjects.filter(project => project.status === "On track").length,
-    "At risk": fiscalProjects.filter(project => project.status === "At risk").length,
-    "Off track": fiscalProjects.filter(project => project.status === "Off track").length,
-    "Planned": fiscalProjects.filter(project => project.status === "Planned").length
-  };
-  const healthyPercent = fiscalProjects.length ? Math.round(counts["On track"] / fiscalProjects.length * 100) : 0;
-  const riskPercent = fiscalProjects.length ? Math.round(counts["At risk"] / fiscalProjects.length * 100) : 0;
+  const counts = {};
+  projectStatuses.forEach(status => { counts[status] = fiscalProjects.filter(project => project.status === status).length; });
+  const share = statuses => fiscalProjects.length ? Math.round(statuses.reduce((sum, status) => sum + counts[status], 0) / fiscalProjects.length * 100) : 0;
+  const healthyPercent = share(statusGroups.healthy);
+  const riskPercent = share(["At risk", "Pause"]);
   elements.healthScore.textContent = `${healthyPercent}%`;
   elements.healthRing.style.setProperty("--health", `${healthyPercent}%`);
   elements.healthRing.style.setProperty("--risk", `${riskPercent}%`);
-  elements.healthLegend.innerHTML = [
-    ["On track", counts["On track"], "var(--green)"],
-    ["At risk", counts["At risk"], "var(--amber)"],
-    ["Off track", counts["Off track"], "var(--red)"],
-    ["Planned", counts["Planned"], "var(--blue)"]
-  ].map(item => `<div class="legend-row"><i style="background:${item[2]}"></i><span>${item[0]}</span><strong>${item[1]}</strong></div>`).join("");
+  const legendStatuses = projectStatuses.filter(status => counts[status] > 0);
+  elements.healthLegend.innerHTML = (legendStatuses.length ? legendStatuses : ["On track", "At risk", "Off track", "Planned"])
+    .map(status => [status, counts[status], statusLegendColors[status]])
+    .map(item => `<div class="legend-row"><i style="background:${item[2]}"></i><span>${item[0]}</span><strong>${item[1]}</strong></div>`).join("");
+}
+
+function attentionTone(status) {
+  return status === "Off track" ? "" : "amber";
+}
+
+function attentionIcon(status) {
+  if (status === "Off track") return "triangle-alert";
+  return status === "Pause" ? "circle-pause" : "clock-3";
+}
+
+function attentionCopy(status) {
+  if (status === "Off track") return "Critical launch blocker";
+  return status === "Pause" ? "Paused - awaiting a restart decision" : "Timeline needs review";
 }
 
 function renderAttention() {
-  const attention = getFiscalProjects().filter(project => ["At risk", "Off track"].includes(project.status));
+  const attention = getFiscalProjects().filter(project => statusGroups.attention.includes(project.status));
   elements.attentionCount.textContent = attention.length;
   elements.attentionList.innerHTML = attention.map(project => `
     <div class="attention-item">
-      <span class="attention-icon ${project.status === "At risk" ? "amber" : ""}">${iconMarkup(project.status === "At risk" ? "clock-3" : "triangle-alert")}</span>
-      <div><strong>${project.name}</strong><small>${project.status === "At risk" ? "Timeline needs review" : "Critical launch blocker"} - ${project.owner}</small></div>
+      <span class="attention-icon ${attentionTone(project.status)}">${iconMarkup(attentionIcon(project.status))}</span>
+      <div><strong>${project.name}</strong><small>${attentionCopy(project.status)} - ${project.owner}</small></div>
       <button class="icon-button subtle open-project" data-id="${project.id}" type="button" aria-label="Open ${project.name}">${iconMarkup("arrow-up-right")}</button>
     </div>`).join("");
 }
 
 function renderCapacity() {
-  const capacity = [
-    ["Engineering", 88, "#176b53"], ["Product", 76, "#36709b"], ["Design", 94, "#e66f51"], ["Marketing", 69, "#c78218"]
-  ];
-  elements.capacityChart.innerHTML = capacity.map(item => `<div class="capacity-row"><span>${item[0]}</span><div class="capacity-track"><span style="width:${item[1]}%;--bar-color:${item[2]}"></span></div><strong>${item[1]}%</strong></div>`).join("");
+  const fiscalProjects = getFiscalProjects();
+  const units = projectUnits
+    .map(unit => {
+      const unitProjects = fiscalProjects.filter(project => project.unit === unit);
+      return {
+        unit,
+        total: unitProjects.length,
+        counts: unitMixBands.map(band => unitProjects.filter(project => band.statuses.includes(project.status)).length)
+      };
+    })
+    .filter(row => row.total)
+    .sort((a, b) => b.total - a.total);
+
+  elements.capacityValue.textContent = `${fiscalProjects.length}`;
+  elements.capacityChart.innerHTML = units.length
+    ? units.map(row => {
+        const segments = unitMixBands.map((band, index) => row.counts[index]
+          ? `<span style="width:${row.counts[index] / row.total * 100}%;--bar-color:${band.color}" title="${band.label}: ${row.counts[index]}"></span>`
+          : "").join("");
+        return `<div class="capacity-row"><span class="unit-mix-label" title="${row.unit}">${row.unit}</span><div class="capacity-track unit-mix-track">${segments}</div><strong>${row.total}</strong></div>`;
+      }).join("")
+    : `<p class="unit-mix-empty">No projects in this fiscal year yet.</p>`;
+
+  elements.capacityLegend.innerHTML = unitMixBands
+    .map((band, index) => ({ band, total: units.reduce((sum, row) => sum + row.counts[index], 0) }))
+    .filter(entry => entry.total)
+    .map(entry => `<span><i style="background:${entry.band.color}"></i>${entry.band.label} ${entry.total}</span>`)
+    .join("");
+
+  const attentionLeader = units
+    .map(row => ({ unit: row.unit, count: row.counts[1] }))
+    .filter(row => row.count)
+    .sort((a, b) => b.count - a.count)[0];
+  elements.capacityNote.textContent = attentionLeader
+    ? `${attentionLeader.unit} carries the most exposure - ${attentionLeader.count} ${attentionLeader.count === 1 ? "project needs" : "projects need"} attention.`
+    : units.length
+      ? "No unit currently has a project needing attention."
+      : "Add a project to see the unit mix.";
 }
 
 function teamCapacityLevel(capacity) {
@@ -602,7 +736,10 @@ function renderResources() {
   elements.resourceMetrics.innerHTML = metrics.map(metric => `<article class="team-metric"><span class="team-metric-icon" style="--team-color:${metric[3]};--team-tint:${metric[4]}">${iconMarkup(metric[2])}</span><div><span>${metric[0]}</span><strong>${metric[1]}</strong><small>${metric[5]}</small></div></article>`).join("");
   document.querySelector("#resourceTotalBadge").textContent = resources.length;
   elements.resourceDirectoryCount.textContent = `(${filtered.length})`;
-  elements.resourceGrid.innerHTML = filtered.map(resource => `<article class="resource-card"><button class="resource-card-main" data-open-resource="${resource.id}" type="button" aria-label="Open ${resource.name} details"><div class="resource-card-head"><span class="avatar">${initials(resource.name)}</span><span class="resource-availability availability-${slug(resource.availability)}">${resource.availability}</span></div><h3>${resource.name}</h3><div class="resource-card-details"><div class="resource-detail-row resource-role-line"><span class="resource-detail-icon">${iconMarkup("briefcase-business")}</span><span><small>Role</small><strong>${resource.role}</strong></span></div><div class="resource-detail-row resource-team-line"><span class="resource-detail-icon">${iconMarkup("users")}</span><span><small>Resource team</small><strong>${resource.teamName}</strong></span></div></div><div class="resource-view-link"><span>View details</span>${iconMarkup("arrow-right")}</div><div class="team-capacity-label"><span>Allocation</span><strong>${resource.allocation}%</strong></div><div class="capacity-track"><span style="width:${resource.allocation}%;--bar-color:${resource.allocation >= 90 ? "#c44e4e" : "#176b53"}"></span></div></button><div class="resource-card-actions"><button class="resource-modify-button" data-modify-resource="${resource.id}" type="button">${iconMarkup("pencil")} Modify</button><button class="resource-delete-button" data-delete-resource="${resource.id}" type="button">${iconMarkup("trash-2")} Delete</button></div></article>`).join("");
+  const grouped = teamDirectory
+    .map(team => ({ team, items: filtered.filter(resource => resource.teamId === team.id) }))
+    .filter(group => group.items.length);
+  elements.resourceGrid.innerHTML = grouped.map(group => `<section class="resource-team-group"><div class="resource-group-heading"><h3>${group.team.name}</h3><span>${group.items.length} ${group.items.length === 1 ? "resource" : "resources"}</span></div><div class="resource-group-grid">${group.items.map(resource => `<article class="resource-card"><button class="resource-card-main" data-open-resource="${resource.id}" type="button" aria-label="Open ${resource.name} details"><div class="resource-card-head"><span class="avatar">${initials(resource.name)}</span><span class="resource-availability availability-${slug(resource.availability)}">${resource.availability}</span></div><h3>${resource.name}</h3><div class="resource-card-details"><div class="resource-detail-row resource-role-line"><span class="resource-detail-icon">${iconMarkup("briefcase-business")}</span><span><small>Role</small><strong>${resource.role}</strong></span></div><div class="resource-detail-row resource-team-line"><span class="resource-detail-icon">${iconMarkup("users")}</span><span><small>Resource team</small><strong>${resource.teamName}</strong></span></div></div><div class="resource-view-link"><span>View details</span>${iconMarkup("arrow-right")}</div><div class="team-capacity-label"><span>Allocation</span><strong>${resource.allocation}%</strong></div><div class="capacity-track"><span style="width:${resource.allocation}%;--bar-color:${resource.allocation >= 90 ? "#c44e4e" : "#176b53"}"></span></div></button><div class="resource-card-actions"><button class="resource-modify-button" data-modify-resource="${resource.id}" type="button">${iconMarkup("pencil")} Modify</button><button class="resource-delete-button" data-delete-resource="${resource.id}" type="button">${iconMarkup("trash-2")} Delete</button></div></article>`).join("")}</div></section>`).join("");
   const empty = filtered.length === 0;
   elements.resourceGrid.classList.toggle("hidden", empty);
   elements.resourceEmptyState.classList.toggle("hidden", !empty);
@@ -647,7 +784,7 @@ function renderTeams() {
   elements.teamGrid.innerHTML = filtered.map(team => {
     const level = teamCapacityLevel(team.capacity);
     const assigned = assignedTeamProjects(team);
-    const cardRoles = [["Product Owner", team.roles["Product Owner"]], ["Lead", team.roles["Dev Lead"]], ["Solution Sponsor", team.roles["Solution Sponsor"]], ["Executive Sponsor", team.roles["Executive Sponsor"]]];
+    const cardRoles = [["Product Owner", team.roles["Product Owner"]], ["Lead", team.roles["Dev Lead"]]];
     const leadership = cardRoles.map(([role, member]) => `<div class="team-card-role ${member ? "" : "unassigned"}"><span class="avatar">${initials(member || "")}</span><span><small>${role}</small><strong>${member || "Unassigned"}</strong></span></div>`).join("");
     return `<article class="team-card"><button class="team-card-main" data-team-id="${team.id}" type="button" aria-label="Open ${team.name} details"><div class="team-card-top"><span class="team-number">${String(team.id).padStart(2, "0")}</span><span class="capacity-state capacity-${level.key}">${level.label}</span></div><h3>${team.name}</h3><p>${team.specialty}</p><div class="team-card-roles">${leadership}</div><div class="team-capacity-label"><span>Capacity allocation</span><strong>${team.capacity}%</strong></div><div class="capacity-track"><span style="width:${team.capacity}%;--bar-color:${level.color}"></span></div></button><div class="team-card-footer"><span>${iconMarkup("users")} ${team.headcount} ${team.headcount === 1 ? "member" : "members"}</span><span>${iconMarkup("folder-kanban")} ${assigned.length} ${assigned.length === 1 ? "project" : "projects"}</span><button class="team-modify-button" data-modify-team="${team.id}" type="button">${iconMarkup("pencil")} Modify</button><button class="team-open-button" data-team-id="${team.id}" type="button" aria-label="Open ${team.name}">${iconMarkup("arrow-up-right")}</button></div></article>`;
   }).join("");
@@ -684,11 +821,22 @@ function deleteSelectedTeam() {
   const team = teamDirectory.find(item => item.id === teamPendingDeletion);
   if (!team) return;
   teamDirectory = teamDirectory.filter(item => item.id !== team.id);
+  const orphaned = projects.filter(project => project.team === team.name);
+  orphaned.forEach(project => {
+    project.team = defaultTeamForUnit(project.unit);
+    const receiving = teamDirectory.find(item => item.name === project.team);
+    if (receiving && !receiving.projectIds.includes(project.id)) receiving.projectIds.push(project.id);
+  });
   saveTeams();
+  if (orphaned.length) saveProjects();
   elements.deleteTeamModal.close();
   closeDrawer();
+  populateTeamFilters();
+  renderAll();
   renderTeams();
-  showToast(`${team.name} removed from the team directory`);
+  showToast(orphaned.length
+    ? `${team.name} removed - ${orphaned.length} ${orphaned.length === 1 ? "project" : "projects"} reassigned`
+    : `${team.name} removed from the team directory`);
   teamPendingDeletion = null;
 }
 
@@ -847,15 +995,18 @@ function getReportProjects() {
 function scheduleVariance(project) {
   if (Number.isFinite(Number(project.scheduleVariance))) return Number(project.scheduleVariance);
   if (project.status === "Off track") return 28;
+  if (project.status === "Pause") return 21;
   if (project.status === "At risk") return 14;
-  if (project.status === "Planned") return 0;
+  if (statusGroups.upcoming.includes(project.status) || statusGroups.done.includes(project.status)) return 0;
   return project.progress >= 75 ? -3 : 0;
 }
 
 function forecastLabel(project) {
   if (project.status === "Off track") return "Delayed";
   if (project.status === "At risk") return "Watch";
-  if (project.status === "Planned") return "Planned";
+  if (project.status === "Pause") return "Paused";
+  if (project.status === "Completed") return "Delivered";
+  if (statusGroups.upcoming.includes(project.status)) return project.status;
   return "On time";
 }
 
@@ -869,10 +1020,10 @@ function reportPeriodCutoff() {
 function renderReports() {
   const visible = getReportProjects();
   const total = visible.length;
-  const delivery = visible.filter(project => project.status !== "Planned");
-  const onTrack = visible.filter(project => project.status === "On track").length;
+  const delivery = visible.filter(project => deliveryStatuses.includes(project.status));
+  const onTrack = visible.filter(project => statusGroups.healthy.includes(project.status)).length;
   const average = total ? Math.round(visible.reduce((sum, project) => sum + project.progress, 0) / total) : 0;
-  const scheduleConfidence = delivery.length ? Math.round(delivery.filter(project => !["Off track"].includes(project.status)).length / delivery.length * 100) : 0;
+  const scheduleConfidence = delivery.length ? Math.round(delivery.filter(project => !["Off track", "Pause"].includes(project.status)).length / delivery.length * 100) : 0;
   const highRisk = visible.filter(project => project.risk === "High").length;
   const health = delivery.length ? Math.round(onTrack / delivery.length * 100) : 0;
   const kpis = [
@@ -893,7 +1044,7 @@ function renderReports() {
   elements.reportRiskMatrix.innerHTML = `<div class="risk-matrix"><span></span>${priorities.map(priority => `<b>${priority} priority</b>`).join("")}${riskLevels.map(risk => `<span class="risk-axis">${risk} risk</span>${priorities.map(priority => { const count = visible.filter(project => project.risk === risk && project.priority === priority).length; return `<button class="risk-cell risk-cell-${risk.toLowerCase()}" data-report-risk="${risk}" type="button"><strong>${count}</strong><small>${count === 1 ? "project" : "projects"}</small></button>`; }).join("")}`).join("")}</div>`;
 
   const teams = [...new Set(visible.map(project => project.team))].sort();
-  elements.teamReport.innerHTML = teams.length ? teams.map(team => { const teamProjects = visible.filter(project => project.team === team); const progress = Math.round(teamProjects.reduce((sum, project) => sum + project.progress, 0) / teamProjects.length); const healthy = teamProjects.filter(project => project.status === "On track").length; return `<div class="team-report-row"><div><strong>${team}</strong><small>${teamProjects.length} ${teamProjects.length === 1 ? "initiative" : "initiatives"}</small></div><div class="team-health-bar"><span style="width:${progress}%"></span></div><strong>${progress}%</strong><span class="team-confidence ${healthy === teamProjects.length ? "good" : "watch"}">${healthy}/${teamProjects.length} healthy</span></div>`; }).join("") : `<div class="report-empty">No team data available.</div>`;
+  elements.teamReport.innerHTML = teams.length ? teams.map(team => { const teamProjects = visible.filter(project => project.team === team); const progress = Math.round(teamProjects.reduce((sum, project) => sum + project.progress, 0) / teamProjects.length); const healthy = teamProjects.filter(project => statusGroups.healthy.includes(project.status)).length; return `<div class="team-report-row"><div><strong>${team}</strong><small>${teamProjects.length} ${teamProjects.length === 1 ? "initiative" : "initiatives"}</small></div><div class="team-health-bar"><span style="width:${progress}%"></span></div><strong>${progress}%</strong><span class="team-confidence ${healthy === teamProjects.length ? "good" : "watch"}">${healthy}/${teamProjects.length} healthy</span></div>`; }).join("") : `<div class="report-empty">No team data available.</div>`;
 
   const cutoff = reportPeriodCutoff();
   const milestones = visible.filter(project => { const date = new Date(`${project.milestoneDate}T12:00:00`); return date >= AS_OF_DATE && date <= cutoff; }).sort((a, b) => new Date(a.milestoneDate) - new Date(b.milestoneDate));
@@ -906,10 +1057,10 @@ function renderReports() {
 
 function reportExportData() {
   const visible = getReportProjects();
-  const active = visible.filter(project => project.status !== "Planned");
-  const onTrack = visible.filter(project => project.status === "On track").length;
+  const active = visible.filter(project => deliveryStatuses.includes(project.status));
+  const onTrack = visible.filter(project => statusGroups.healthy.includes(project.status)).length;
   const average = visible.length ? Math.round(visible.reduce((sum, project) => sum + project.progress, 0) / visible.length) : 0;
-  const scheduleConfidence = active.length ? Math.round(active.filter(project => project.status !== "Off track").length / active.length * 100) : 0;
+  const scheduleConfidence = active.length ? Math.round(active.filter(project => !["Off track", "Pause"].includes(project.status)).length / active.length * 100) : 0;
   const highRisk = visible.filter(project => project.risk === "High").length;
   const totalCost = visible.reduce((sum, project) => sum + (Number(project.approxCost) || 0), 0);
   const period = document.querySelector("#reportPeriod option:checked").textContent;
@@ -919,7 +1070,7 @@ function reportExportData() {
   const cutoff = reportPeriodCutoff();
   const riskCost = visible.filter(project => project.risk === "High").reduce((sum, project) => sum + (Number(project.approxCost) || 0), 0);
   const upcomingMilestones = [...visible].filter(project => { const date = new Date(`${project.milestoneDate}T12:00:00`); return date >= AS_OF_DATE && date <= cutoff; }).sort((a, b) => new Date(a.milestoneDate) - new Date(b.milestoneDate));
-  const exceptions = visible.filter(project => ["At risk", "Off track"].includes(project.status));
+  const exceptions = visible.filter(project => statusGroups.attention.includes(project.status));
   return { visible, activeCount: active.length, onTrack, average, scheduleConfidence, highRisk, totalCost, riskCost, period, team, status, fiscal, fiscalLabel: fiscalYearLabel(selectedFiscalYear), upcomingMilestones, exceptions };
 }
 
@@ -977,7 +1128,7 @@ function buildExcelReport() {
   highLevelSheet["!autofilter"] = { ref: `A1:B${highLevelRows.length}` };
   window.XLSX.utils.book_append_sheet(workbook, highLevelSheet, "High-Level Details");
 
-  const registerRows = [["Project", "Unit", "Objective", "Team", "Owner", "RAG Status", "Progress", "Approximate Cost USD", "Schedule Variance Days", "Risk", "Priority", "Start Date", "Target Date", "Next Milestone", "Milestone Date", "Forecast", "Fiscal Year"]];
+  const registerRows = [["Project", "Unit", "Objective", "Team", "Owner", "Status", "Progress", "Approximate Cost USD", "Schedule Variance Days", "Risk", "Priority", "Start Date", "Target Date", "Next Milestone", "Milestone Date", "Forecast", "Fiscal Year"]];
   data.visible.forEach(project => registerRows.push([project.name, project.unit, project.objective, project.team, project.owner, project.status, project.progress / 100, Number(project.approxCost) || 0, scheduleVariance(project), project.risk, project.priority, project.start, project.end, project.milestone, project.milestoneDate, forecastLabel(project), data.fiscalLabel]));
   const registerSheet = window.XLSX.utils.aoa_to_sheet(registerRows);
   registerSheet["!cols"] = [{ wch: 8 }, { wch: 28 }, { wch: 55 }, { wch: 16 }, { wch: 20 }, { wch: 13 }, { wch: 11 }, { wch: 22 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 24 }, { wch: 15 }, { wch: 12 }, { wch: 12 }];
@@ -1041,7 +1192,7 @@ function buildPdfReport() {
   doc.autoTable({
     startY: 55,
     margin: { left: 36, right: 36 },
-    head: [["Project", "Objective", "Team / Owner", "RAG", "Progress", "Approx. cost", "Variance", "Risk"]],
+    head: [["Project", "Objective", "Team / Owner", "Status", "Progress", "Approx. cost", "Variance", "Risk"]],
     body: data.visible.map(project => [project.name, project.objective, `${project.team}\n${project.owner}`, project.status, `${project.progress}%`, formatCurrency(project.approxCost), `${scheduleVariance(project)} days`, project.risk]),
     theme: "striped",
     styles: { fontSize: 7, cellPadding: 4, overflow: "linebreak" },
@@ -1114,8 +1265,8 @@ function buildPowerPointReport() {
     const row = Math.floor(index / 3);
     summarySlide.addText([{ text: `${metric[1]}\n`, options: { bold: true, fontSize: 22, color: index === 4 ? "C44E4E" : "176B53" } }, { text: metric[0], options: { fontSize: 9, color: "58615D" } }], { x: 0.6 + column * 4.2, y: 1.1 + row * 1.45, w: 3.75, h: 1.05, fontFace: "Arial", margin: 0.15, fill: { color: "FFFFFF" }, line: { color: "DDE2DF" }, breakLine: false });
   });
-  const statusRows = ["On track", "At risk", "Off track", "Planned"].map(status => [status, data.visible.filter(project => project.status === status).length, data.visible.length ? `${Math.round(data.visible.filter(project => project.status === status).length / data.visible.length * 100)}%` : "0%"]);
-  summarySlide.addText("RAG status distribution", { x: 0.6, y: 4.2, w: 3.2, h: 0.3, fontFace: "Arial", fontSize: 13, bold: true, color: "18201D", margin: 0 });
+  const statusRows = projectStatuses.filter(status => data.visible.some(project => project.status === status)).map(status => [status, data.visible.filter(project => project.status === status).length, data.visible.length ? `${Math.round(data.visible.filter(project => project.status === status).length / data.visible.length * 100)}%` : "0%"]);
+  summarySlide.addText("Status distribution", { x: 0.6, y: 4.2, w: 3.2, h: 0.3, fontFace: "Arial", fontSize: 13, bold: true, color: "18201D", margin: 0 });
   summarySlide.addTable([["Status", "Projects", "Share"], ...statusRows], { x: 0.6, y: 4.65, w: 5.1, h: 1.6, fontFace: "Arial", fontSize: 9, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF", color: "18201D", rowH: 0.31, margin: 0.06, bold: false, autoFit: false });
   const upcoming = data.upcomingMilestones.slice(0, 5);
   summarySlide.addText("Roadmap milestone forecast", { x: 6.2, y: 4.2, w: 3.4, h: 0.3, fontFace: "Arial", fontSize: 13, bold: true, color: "18201D", margin: 0 });
@@ -1136,7 +1287,7 @@ function buildPowerPointReport() {
     slide.background = { color: "F4F6F4" };
     slide.addText(`Project performance register${chunks.length > 1 ? ` · ${index + 1} of ${chunks.length}` : ""}`, { x: 0.55, y: 0.35, w: 8.5, h: 0.4, fontFace: "Arial", fontSize: 21, bold: true, color: "18201D", margin: 0 });
     slide.addText(`${data.fiscalLabel} · ${data.period} · ${data.team} · ${data.status}`, { x: 8.5, y: 0.42, w: 4.2, h: 0.22, fontFace: "Arial", fontSize: 8, color: "58615D", align: "right", margin: 0 });
-    slide.addTable([["Project / objective", "Team / owner", "RAG", "Progress", "Approx. cost", "Variance", "Risk", "Next milestone"], ...chunk.map(project => [`${project.name}\n${project.objective}`, `${project.team}\n${project.owner}`, project.status, `${project.progress}%`, formatCurrency(project.approxCost), `${scheduleVariance(project)} days`, project.risk, `${project.milestone}\n${formatDate(project.milestoneDate)}`])], { x: 0.55, y: 1.05, w: 12.2, h: 5.65, fontFace: "Arial", fontSize: 7.5, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF", color: "18201D", rowH: 0.72, margin: 0.06, autoFit: false, bold: false });
+    slide.addTable([["Project / objective", "Team / owner", "Status", "Progress", "Approx. cost", "Variance", "Risk", "Next milestone"], ...chunk.map(project => [`${project.name}\n${project.objective}`, `${project.team}\n${project.owner}`, project.status, `${project.progress}%`, formatCurrency(project.approxCost), `${scheduleVariance(project)} days`, project.risk, `${project.milestone}\n${formatDate(project.milestoneDate)}`])], { x: 0.55, y: 1.05, w: 12.2, h: 5.65, fontFace: "Arial", fontSize: 7.5, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF", color: "18201D", rowH: 0.72, margin: 0.06, autoFit: false, bold: false });
     addPptxFooter(slide, index + 5);
   });
   return pptx;
@@ -1153,6 +1304,507 @@ async function exportReportPptx() {
   } finally {
     button.disabled = false;
   }
+}
+
+// ── Project workspace exports ───────────────────────────────────────────────
+function projectsExportData() {
+  const fiscalProjects = getFiscalProjects();
+  const visible = getFilteredProjects();
+  const delivery = visible.filter(project => deliveryStatuses.includes(project.status));
+  const healthy = visible.filter(project => statusGroups.healthy.includes(project.status)).length;
+  const attention = visible.filter(project => statusGroups.attention.includes(project.status));
+  const statusCounts = projectStatuses
+    .map(status => ({ status, count: visible.filter(project => project.status === status).length }))
+    .filter(entry => entry.count);
+  const unitMix = projectUnits
+    .map(unit => {
+      const items = visible.filter(project => project.unit === unit);
+      return { unit, total: items.length, bands: unitMixBands.map(band => items.filter(project => band.statuses.includes(project.status)).length) };
+    })
+    .filter(row => row.total);
+  return {
+    visible,
+    attention,
+    statusCounts,
+    unitMix,
+    fiscalLabel: fiscalYearLabel(selectedFiscalYear),
+    scope: {
+      status: statusFilter === "all" ? "All statuses" : statusFilter,
+      team: teamFilter === "all" ? "All teams" : teamFilter,
+      unit: unitFilter === "all" ? "All units" : unitFilter,
+      search: query.trim() || "None"
+    },
+    totals: {
+      portfolio: fiscalProjects.length,
+      shown: visible.length,
+      onTrack: healthy,
+      attention: attention.length,
+      averageProgress: visible.length ? Math.round(visible.reduce((sum, project) => sum + project.progress, 0) / visible.length) : 0,
+      health: delivery.length ? Math.round(healthy / delivery.length * 100) : 0,
+      cost: visible.reduce((sum, project) => sum + (Number(project.approxCost) || 0), 0),
+      highRisk: visible.filter(project => project.risk === "High").length
+    }
+  };
+}
+
+const PROJECT_REGISTER_COLUMNS = ["Project", "Unit", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
+
+function projectRegisterRow(project) {
+  return [project.name, project.unit, project.team, project.owner, project.status, project.priority, project.risk,
+    project.progress / 100, project.start, project.end, Number(project.approxCost) || 0, scheduleVariance(project),
+    forecastLabel(project), project.milestone, project.milestoneDate];
+}
+
+function buildProjectsExcel() {
+  if (!window.XLSX) throw new Error("Excel export library is unavailable.");
+  const data = projectsExportData();
+  const workbook = window.XLSX.utils.book_new();
+  workbook.Props = { Title: "Project Workspace Export", Subject: "Project execution register", Author: "Platforms Branch Project and Roadmap App", CreatedDate: AS_OF_DATE };
+
+  const summary = window.XLSX.utils.aoa_to_sheet([
+    ["Project Workspace Export"],
+    ["As of", formatDate("2026-09-10", { year: "numeric", month: "long", day: "numeric" })],
+    ["Fiscal year", data.fiscalLabel],
+    [],
+    ["Filters applied"],
+    ["Status", data.scope.status],
+    ["Team", data.scope.team],
+    ["Unit", data.scope.unit],
+    ["Search", data.scope.search],
+    [],
+    ["Measure", "Value"],
+    ["Projects in fiscal year", data.totals.portfolio],
+    ["Projects in this export", data.totals.shown],
+    ["On track or in-flight", data.totals.onTrack],
+    ["Needing attention", data.totals.attention],
+    ["Portfolio health", data.totals.health / 100],
+    ["Average progress", data.totals.averageProgress / 100],
+    ["High delivery risk", data.totals.highRisk],
+    ["Approximate cost", data.totals.cost]
+  ]);
+  summary["!cols"] = [{ wch: 30 }, { wch: 44 }];
+  if (summary.B16) summary.B16.z = "0%";
+  if (summary.B17) summary.B17.z = "0%";
+  if (summary.B19) summary.B19.z = "$#,##0";
+  window.XLSX.utils.book_append_sheet(workbook, summary, "Summary");
+
+  const register = window.XLSX.utils.aoa_to_sheet([PROJECT_REGISTER_COLUMNS, ...data.visible.map(projectRegisterRow)]);
+  register["!cols"] = [{ wch: 32 }, { wch: 34 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 14 }];
+  data.visible.forEach((_, index) => {
+    const row = index + 2;
+    if (register[`H${row}`]) register[`H${row}`].z = "0%";
+    if (register[`K${row}`]) register[`K${row}`].z = "$#,##0";
+  });
+  window.XLSX.utils.book_append_sheet(workbook, register, "Project Register");
+
+  const distribution = window.XLSX.utils.aoa_to_sheet([
+    ["Status", "Projects", "Share"],
+    ...data.statusCounts.map(entry => [entry.status, entry.count, data.visible.length ? entry.count / data.visible.length : 0])
+  ]);
+  distribution["!cols"] = [{ wch: 16 }, { wch: 10 }, { wch: 10 }];
+  data.statusCounts.forEach((_, index) => { if (distribution[`C${index + 2}`]) distribution[`C${index + 2}`].z = "0%"; });
+  window.XLSX.utils.book_append_sheet(workbook, distribution, "Status Distribution");
+
+  const mix = window.XLSX.utils.aoa_to_sheet([
+    ["Unit", "Projects", ...unitMixBands.map(band => band.label)],
+    ...data.unitMix.map(row => [row.unit, row.total, ...row.bands])
+  ]);
+  mix["!cols"] = [{ wch: 42 }, { wch: 10 }, ...unitMixBands.map(() => ({ wch: 17 }))];
+  window.XLSX.utils.book_append_sheet(workbook, mix, "Unit Mix");
+
+  const attention = window.XLSX.utils.aoa_to_sheet([
+    ["Project", "Status", "Owner", "Team", "Progress", "Variance (days)", "Risk"],
+    ...(data.attention.length ? data.attention.map(project => [project.name, project.status, project.owner, project.team, project.progress / 100, scheduleVariance(project), project.risk]) : [["No projects need attention in this scope"]])
+  ]);
+  attention["!cols"] = [{ wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 8 }];
+  data.attention.forEach((_, index) => { if (attention[`E${index + 2}`]) attention[`E${index + 2}`].z = "0%"; });
+  window.XLSX.utils.book_append_sheet(workbook, attention, "Needs Attention");
+  return workbook;
+}
+
+function exportDocHeader(doc, title, subtitle, width) {
+  doc.setFillColor(23, 107, 83);
+  doc.rect(0, 0, width, 74, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text(title, 36, 36);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(subtitle, 36, 56);
+  doc.setTextColor(24, 32, 29);
+}
+
+function stampPdfFooter(doc, label) {
+  const pages = doc.internal.getNumberOfPages();
+  for (let page = 1; page <= pages; page += 1) {
+    doc.setPage(page);
+    doc.setTextColor(110, 120, 115);
+    doc.setFontSize(7);
+    doc.text(`${label}  |  Page ${page} of ${pages}`, 36, doc.internal.pageSize.getHeight() - 20);
+  }
+}
+
+function buildProjectsPdf() {
+  if (!window.jspdf?.jsPDF) throw new Error("PDF export library is unavailable.");
+  const data = projectsExportData();
+  const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  doc.setProperties({ title: "Project Workspace Export", subject: "Project execution register", author: "Platforms Branch Project and Roadmap App" });
+  exportDocHeader(doc, "Project workspace", `${data.fiscalLabel}  |  ${data.scope.status}  |  ${data.scope.team}  |  ${data.scope.unit}  |  As of September 10, 2026`, 842);
+
+  doc.autoTable({
+    startY: 94, margin: { left: 36 }, tableWidth: 300,
+    head: [["Measure", "Value"]],
+    body: [
+      ["Projects in this export", `${data.totals.shown} of ${data.totals.portfolio}`],
+      ["Portfolio health", `${data.totals.health}%`],
+      ["On track or in-flight", String(data.totals.onTrack)],
+      ["Needing attention", String(data.totals.attention)],
+      ["Average progress", `${data.totals.averageProgress}%`],
+      ["High delivery risk", String(data.totals.highRisk)],
+      ["Approximate cost", formatCurrency(data.totals.cost)]
+    ],
+    theme: "grid", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [23, 107, 83] }
+  });
+  doc.autoTable({
+    startY: 94, margin: { left: 360, right: 36 },
+    head: [["Status", "Projects", "Share"]],
+    body: data.statusCounts.map(entry => [entry.status, String(entry.count), `${data.visible.length ? Math.round(entry.count / data.visible.length * 100) : 0}%`]),
+    theme: "grid", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [54, 112, 155] }
+  });
+
+  doc.addPage("a4", "landscape");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Project register", 36, 40);
+  doc.autoTable({
+    startY: 54, margin: { left: 36, right: 36 },
+    head: [["Project", "Unit", "Team / Owner", "Status", "Progress", "Start", "Target", "Approx. cost", "Variance", "Forecast"]],
+    body: data.visible.map(project => [project.name, project.unit, `${project.team}\n${project.owner}`, project.status,
+      `${project.progress}%`, formatDate(project.start), formatDate(project.end), formatCurrency(project.approxCost),
+      `${scheduleVariance(project)}d`, forecastLabel(project)]),
+    theme: "striped", styles: { fontSize: 7, cellPadding: 3, valign: "middle" }, headStyles: { fillColor: [23, 107, 83] },
+    columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 120 } }
+  });
+
+  if (data.attention.length) {
+    doc.addPage("a4", "landscape");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("Projects needing attention", 36, 40);
+    doc.autoTable({
+      startY: 54, margin: { left: 36, right: 36 },
+      head: [["Project", "Status", "Owner", "Team", "Progress", "Variance", "Risk"]],
+      body: data.attention.map(project => [project.name, project.status, project.owner, project.team, `${project.progress}%`, `${scheduleVariance(project)}d`, project.risk]),
+      theme: "grid", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [196, 78, 78] }
+    });
+  }
+  stampPdfFooter(doc, "Project workspace export");
+  return doc;
+}
+
+function buildProjectsPptx() {
+  if (!window.PptxGenJS) throw new Error("PowerPoint export library is unavailable.");
+  const data = projectsExportData();
+  const pptx = new window.PptxGenJS();
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.author = "Platforms Branch Project and Roadmap App";
+  pptx.title = "Project workspace";
+  pptx.subject = "Project execution register";
+  pptx.lang = "en-US";
+
+  const title = pptx.addSlide();
+  title.background = { color: "1B3A30" };
+  title.addText("PROJECT COMMAND CENTER", { x: 0.7, y: 0.7, w: 6, h: 0.25, fontFace: "Arial", fontSize: 10, bold: true, color: "8FD3B8", charSpacing: 1.2, margin: 0 });
+  title.addText("Project workspace", { x: 0.7, y: 1.4, w: 9, h: 0.7, fontFace: "Arial", fontSize: 30, bold: true, color: "FFFFFF", margin: 0 });
+  title.addText(`${data.totals.shown} of ${data.totals.portfolio} projects  ·  ${data.scope.status}  ·  ${data.scope.team}  ·  ${data.scope.unit}`, { x: 0.7, y: 2.25, w: 10.5, h: 0.4, fontFace: "Arial", fontSize: 13, color: "C4D0CA", margin: 0 });
+  title.addText(`${data.fiscalLabel}\nAs of September 10, 2026`, { x: 0.7, y: 6.5, w: 5, h: 0.5, fontFace: "Arial", fontSize: 11, color: "8FA79B", margin: 0 });
+
+  const summary = pptx.addSlide();
+  summary.addText("Portfolio position", { x: 0.6, y: 0.45, w: 8, h: 0.4, fontFace: "Arial", fontSize: 20, bold: true, color: "18201D", margin: 0 });
+  summary.addTable([["Measure", "Value"],
+    ["Projects in this export", `${data.totals.shown} of ${data.totals.portfolio}`],
+    ["Portfolio health", `${data.totals.health}%`],
+    ["On track or in-flight", String(data.totals.onTrack)],
+    ["Needing attention", String(data.totals.attention)],
+    ["Average progress", `${data.totals.averageProgress}%`],
+    ["Approximate cost", formatCurrency(data.totals.cost)]],
+    { x: 0.6, y: 1.05, w: 5.6, fontFace: "Arial", fontSize: 11, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+  summary.addText("Status distribution", { x: 6.6, y: 0.95, w: 6, h: 0.3, fontFace: "Arial", fontSize: 13, bold: true, color: "18201D", margin: 0 });
+  summary.addTable([["Status", "Projects", "Share"],
+    ...data.statusCounts.map(entry => [entry.status, String(entry.count), `${data.visible.length ? Math.round(entry.count / data.visible.length * 100) : 0}%`])],
+    { x: 6.6, y: 1.4, w: 6, fontFace: "Arial", fontSize: 10, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+  summary.addText("Unit mix", { x: 0.6, y: 4.6, w: 6, h: 0.3, fontFace: "Arial", fontSize: 13, bold: true, color: "18201D", margin: 0 });
+  summary.addTable([["Unit", "Projects", ...unitMixBands.map(band => band.label)],
+    ...data.unitMix.map(row => [row.unit, String(row.total), ...row.bands.map(String)])],
+    { x: 0.6, y: 5.05, w: 12, fontFace: "Arial", fontSize: 9, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+
+  const chunkSize = 12;
+  for (let index = 0; index < data.visible.length; index += chunkSize) {
+    const chunk = data.visible.slice(index, index + chunkSize);
+    const slide = pptx.addSlide();
+    slide.addText(`Project register${data.visible.length > chunkSize ? ` (${index / chunkSize + 1})` : ""}`, { x: 0.6, y: 0.4, w: 8, h: 0.4, fontFace: "Arial", fontSize: 18, bold: true, color: "18201D", margin: 0 });
+    slide.addTable([["Project / unit", "Team / owner", "Status", "Progress", "Start", "Target", "Cost", "Forecast"],
+      ...chunk.map(project => [`${project.name}\n${project.unit}`, `${project.team}\n${project.owner}`, project.status,
+        `${project.progress}%`, formatDate(project.start), formatDate(project.end), formatCurrency(project.approxCost), forecastLabel(project)])],
+      { x: 0.6, y: 1, w: 12.1, fontFace: "Arial", fontSize: 9, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+  }
+  return pptx;
+}
+
+// ── Roadmap exports ─────────────────────────────────────────────────────────
+function roadmapExportData() {
+  const range = timelineRange();
+  const visible = getRoadmapVisibleProjects();
+  const lanes = projectUnits
+    .map(unit => ({ unit, items: visible.filter(project => project.unit === unit) }))
+    .filter(lane => lane.items.length);
+  const milestones = visible
+    .filter(project => {
+      const date = new Date(`${project.milestoneDate}T12:00:00`);
+      return date >= range.start && date <= range.end;
+    })
+    .sort((first, second) => new Date(first.milestoneDate) - new Date(second.milestoneDate));
+  return {
+    range,
+    visible,
+    lanes,
+    milestones,
+    quarter: `Q${roadmapQuarter + 1}`,
+    fiscalLabel: fiscalYearLabel(selectedFiscalYear),
+    horizon: `${formatDate(range.start.toISOString().slice(0, 10), { year: "numeric", month: "short", day: "numeric" })} to ${formatDate(range.end.toISOString().slice(0, 10), { year: "numeric", month: "short", day: "numeric" })}`,
+    vision: roadmapStrategy.vision || "No guiding vision recorded.",
+    goals: roadmapStrategy.goals || [],
+    metrics: roadmapSuccessMetrics(),
+    contentions: scheduleContentions(),
+    team: roadmapTeam === "all" ? "All teams" : roadmapTeam
+  };
+}
+
+function buildRoadmapExcel() {
+  if (!window.XLSX) throw new Error("Excel export library is unavailable.");
+  const data = roadmapExportData();
+  const workbook = window.XLSX.utils.book_new();
+  workbook.Props = { Title: `Roadmap ${data.quarter} ${data.fiscalLabel}`, Subject: "Portfolio roadmap", Author: "Platforms Branch Project and Roadmap App", CreatedDate: AS_OF_DATE };
+
+  const strategy = window.XLSX.utils.aoa_to_sheet([
+    [`Portfolio roadmap - ${data.quarter} ${data.fiscalLabel}`],
+    ["Horizon", data.horizon],
+    ["Team filter", data.team],
+    ["As of", formatDate("2026-09-10", { year: "numeric", month: "long", day: "numeric" })],
+    [],
+    ["Guiding vision"],
+    [data.vision],
+    [],
+    ["Strategic goals"],
+    ["Goal", "Outcome", "Now", "Target", "Unit", "Progress to target"],
+    ...(data.goals.length
+      ? data.goals.map(goal => [goal.title, goal.outcome, Number(goal.current) || 0, Number(goal.target) || 0, goal.unit || "",
+          Number(goal.target) ? Math.min(1, (Number(goal.current) || 0) / Number(goal.target)) : 0])
+      : [["No strategic goals recorded"]])
+  ]);
+  strategy["!cols"] = [{ wch: 30 }, { wch: 62 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 18 }];
+  data.goals.forEach((_, index) => { const cell = strategy[`F${index + 11}`]; if (cell) cell.z = "0%"; });
+  window.XLSX.utils.book_append_sheet(workbook, strategy, "Vision and Goals");
+
+  const metrics = window.XLSX.utils.aoa_to_sheet([
+    ["Metric", "Value", "Target", "Basis"],
+    ...data.metrics.map(metric => [metric.label, `${metric.value}${metric.unit}`, metric.target === null ? "No target" : `${metric.target}${metric.unit}`, metric.hint])
+  ]);
+  metrics["!cols"] = [{ wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 34 }];
+  window.XLSX.utils.book_append_sheet(workbook, metrics, "Success Metrics");
+
+  const initiatives = window.XLSX.utils.aoa_to_sheet([
+    ["Quarter", "Unit", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
+    ...data.lanes.flatMap(lane => lane.items.map(project => [data.quarter, lane.unit, project.name, project.team, project.owner,
+      project.status, project.progress / 100, project.start, project.end, project.milestone, project.milestoneDate]))
+  ]);
+  initiatives["!cols"] = [{ wch: 9 }, { wch: 42 }, { wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 14 }];
+  data.visible.forEach((_, index) => { const cell = initiatives[`G${index + 2}`]; if (cell) cell.z = "0%"; });
+  window.XLSX.utils.book_append_sheet(workbook, initiatives, "Initiatives");
+
+  const milestoneSheet = window.XLSX.utils.aoa_to_sheet([
+    ["Date", "Milestone", "Initiative", "Unit", "Team", "Owner"],
+    ...(data.milestones.length
+      ? data.milestones.map(project => [project.milestoneDate, project.milestone, project.name, project.unit, project.team, project.owner])
+      : [["No milestones committed in this quarter"]])
+  ]);
+  milestoneSheet["!cols"] = [{ wch: 14 }, { wch: 28 }, { wch: 32 }, { wch: 42 }, { wch: 10 }, { wch: 18 }];
+  window.XLSX.utils.book_append_sheet(workbook, milestoneSheet, "Milestones");
+
+  const contention = window.XLSX.utils.aoa_to_sheet([
+    ["Team", "Initiative A", "Initiative B", "Overlap (days)"],
+    ...(data.contentions.length
+      ? data.contentions.map(overlap => [overlap.team, overlap.a.name, overlap.b.name, overlap.days])
+      : [["No two initiatives on the same team overlap in this horizon"]])
+  ]);
+  contention["!cols"] = [{ wch: 10 }, { wch: 32 }, { wch: 32 }, { wch: 15 }];
+  window.XLSX.utils.book_append_sheet(workbook, contention, "Schedule Contention");
+  return workbook;
+}
+
+function buildRoadmapPdf() {
+  if (!window.jspdf?.jsPDF) throw new Error("PDF export library is unavailable.");
+  const data = roadmapExportData();
+  const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  doc.setProperties({ title: `Roadmap ${data.quarter} ${data.fiscalLabel}`, subject: "Portfolio roadmap", author: "Platforms Branch Project and Roadmap App" });
+  exportDocHeader(doc, `Portfolio roadmap - ${data.quarter} ${data.fiscalLabel}`, `${data.horizon}  |  ${data.team}  |  As of September 10, 2026`, 842);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Guiding vision", 36, 100);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(doc.splitTextToSize(data.vision, 770), 36, 116);
+
+  doc.autoTable({
+    startY: 156, margin: { left: 36, right: 36 },
+    head: [["Strategic goal", "Outcome", "Now", "Target", "To target"]],
+    body: data.goals.length
+      ? data.goals.map(goal => [goal.title, goal.outcome, `${goal.current}${goal.unit || ""}`, `${goal.target}${goal.unit || ""}`,
+          `${Number(goal.target) ? Math.min(100, Math.round((Number(goal.current) || 0) / Number(goal.target) * 100)) : 0}%`])
+      : [["No strategic goals recorded", "", "", "", ""]],
+    theme: "grid", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [23, 107, 83] },
+    columnStyles: { 1: { cellWidth: 330 } }
+  });
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 18, margin: { left: 36, right: 36 },
+    head: [["Metric for success", "Value", "Target", "Basis"]],
+    body: data.metrics.map(metric => [metric.label, `${metric.value}${metric.unit}`, metric.target === null ? "No target" : `${metric.target}${metric.unit}`, metric.hint]),
+    theme: "grid", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [54, 112, 155] }
+  });
+
+  doc.addPage("a4", "landscape");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(`Initiatives by unit - ${data.quarter} ${data.fiscalLabel}`, 36, 40);
+  const laneRows = data.lanes.flatMap(lane => [
+    [{ content: lane.unit, colSpan: 7, styles: { fillColor: [232, 238, 234], fontStyle: "bold", textColor: [24, 32, 29] } }],
+    ...lane.items.map(project => ["", project.name, `${project.team}\n${project.owner}`, project.status, `${project.progress}%`,
+      `${formatDate(project.start)} - ${formatDate(project.end)}`, `${project.milestone}\n${formatDate(project.milestoneDate)}`])
+  ]);
+  doc.autoTable({
+    startY: 54, margin: { left: 36, right: 36 },
+    head: [["", "Initiative", "Team / owner", "Status", "Progress", "Window", "Next milestone"]],
+    body: laneRows.length ? laneRows : [["", "No initiatives in this horizon", "", "", "", "", ""]],
+    theme: "grid", styles: { fontSize: 8, cellPadding: 4, valign: "middle" }, headStyles: { fillColor: [23, 107, 83] },
+    columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 150 } }
+  });
+
+  doc.addPage("a4", "landscape");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Milestones and schedule contention", 36, 40);
+  doc.autoTable({
+    startY: 54, margin: { left: 36, right: 36 },
+    head: [["Date", "Milestone", "Initiative", "Unit", "Owner"]],
+    body: data.milestones.length
+      ? data.milestones.map(project => [formatDate(project.milestoneDate), project.milestone, project.name, project.unit, project.owner])
+      : [["-", "No milestones committed in this quarter", "", "", ""]],
+    theme: "striped", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [230, 111, 81] }
+  });
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 18, margin: { left: 36, right: 36 },
+    head: [["Team", "Initiative A", "Initiative B", "Overlap"]],
+    body: data.contentions.length
+      ? data.contentions.map(overlap => [overlap.team, overlap.a.name, overlap.b.name, `${overlap.days} days`])
+      : [["-", "No two initiatives on the same team overlap in this horizon", "", ""]],
+    theme: "grid", styles: { fontSize: 8, cellPadding: 4 }, headStyles: { fillColor: [196, 78, 78] }
+  });
+  stampPdfFooter(doc, `Roadmap ${data.quarter} ${data.fiscalLabel}`);
+  return doc;
+}
+
+function buildRoadmapPptx() {
+  if (!window.PptxGenJS) throw new Error("PowerPoint export library is unavailable.");
+  const data = roadmapExportData();
+  const pptx = new window.PptxGenJS();
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.author = "Platforms Branch Project and Roadmap App";
+  pptx.title = `Portfolio roadmap ${data.quarter} ${data.fiscalLabel}`;
+  pptx.subject = "Portfolio roadmap";
+  pptx.lang = "en-US";
+
+  const title = pptx.addSlide();
+  title.background = { color: "263A32" };
+  title.addText("PORTFOLIO ROADMAP", { x: 0.7, y: 0.7, w: 6, h: 0.25, fontFace: "Arial", fontSize: 10, bold: true, color: "F4A57D", charSpacing: 1.2, margin: 0 });
+  title.addText(`${data.quarter} ${data.fiscalLabel}`, { x: 0.7, y: 1.35, w: 9, h: 0.8, fontFace: "Arial", fontSize: 34, bold: true, color: "FFFFFF", margin: 0 });
+  title.addText(data.vision, { x: 0.7, y: 2.4, w: 9.5, h: 1.1, fontFace: "Arial", fontSize: 15, color: "C4D0CA", margin: 0 });
+  title.addText(`${data.horizon}  ·  ${data.team}  ·  ${data.visible.length} initiatives`, { x: 0.7, y: 6.4, w: 8, h: 0.4, fontFace: "Arial", fontSize: 11, color: "AEBDB6", margin: 0 });
+
+  const strategy = pptx.addSlide();
+  strategy.addText("Strategic goals", { x: 0.6, y: 0.45, w: 8, h: 0.4, fontFace: "Arial", fontSize: 20, bold: true, color: "18201D", margin: 0 });
+  strategy.addTable([["Goal", "Outcome", "Now", "Target", "To target"],
+    ...(data.goals.length
+      ? data.goals.map(goal => [goal.title, goal.outcome, `${goal.current}${goal.unit || ""}`, `${goal.target}${goal.unit || ""}`,
+          `${Number(goal.target) ? Math.min(100, Math.round((Number(goal.current) || 0) / Number(goal.target) * 100)) : 0}%`])
+      : [["No strategic goals recorded", "", "", "", ""]])],
+    { x: 0.6, y: 1.05, w: 12.1, fontFace: "Arial", fontSize: 10, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF", colW: [2.6, 5.9, 1.1, 1.1, 1.4] });
+  strategy.addText("Metrics for success", { x: 0.6, y: 4.1, w: 8, h: 0.3, fontFace: "Arial", fontSize: 14, bold: true, color: "18201D", margin: 0 });
+  strategy.addTable([["Metric", "Value", "Target", "Basis"],
+    ...data.metrics.map(metric => [metric.label, `${metric.value}${metric.unit}`, metric.target === null ? "No target" : `${metric.target}${metric.unit}`, metric.hint])],
+    { x: 0.6, y: 4.55, w: 12.1, fontFace: "Arial", fontSize: 10, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+
+  data.lanes.forEach(lane => {
+    const slide = pptx.addSlide();
+    slide.addText(lane.unit, { x: 0.6, y: 0.4, w: 10, h: 0.4, fontFace: "Arial", fontSize: 18, bold: true, color: "18201D", margin: 0 });
+    slide.addText(`${data.quarter} ${data.fiscalLabel}  ·  ${lane.items.length} ${lane.items.length === 1 ? "initiative" : "initiatives"}`, { x: 0.6, y: 0.85, w: 8, h: 0.25, fontFace: "Arial", fontSize: 10, color: "58615D", margin: 0 });
+    slide.addTable([["Initiative", "Team / owner", "Status", "Progress", "Window", "Next milestone"],
+      ...lane.items.map(project => [project.name, `${project.team}\n${project.owner}`, project.status, `${project.progress}%`,
+        `${formatDate(project.start)} - ${formatDate(project.end)}`, `${project.milestone}\n${formatDate(project.milestoneDate)}`])],
+      { x: 0.6, y: 1.25, w: 12.1, fontFace: "Arial", fontSize: 10, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+  });
+
+  const closing = pptx.addSlide();
+  closing.addText("Milestones this quarter", { x: 0.6, y: 0.45, w: 8, h: 0.4, fontFace: "Arial", fontSize: 20, bold: true, color: "18201D", margin: 0 });
+  closing.addTable([["Date", "Milestone", "Initiative", "Owner"],
+    ...(data.milestones.length
+      ? data.milestones.map(project => [formatDate(project.milestoneDate), project.milestone, project.name, project.owner])
+      : [["-", "No milestones committed in this quarter", "", ""]])],
+    { x: 0.6, y: 1.05, w: 12.1, fontFace: "Arial", fontSize: 10, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+  closing.addText("Schedule contention", { x: 0.6, y: 4.2, w: 8, h: 0.3, fontFace: "Arial", fontSize: 14, bold: true, color: "18201D", margin: 0 });
+  closing.addTable([["Team", "Initiative A", "Initiative B", "Overlap"],
+    ...(data.contentions.length
+      ? data.contentions.map(overlap => [overlap.team, overlap.a.name, overlap.b.name, `${overlap.days} days`])
+      : [["-", "No two initiatives on the same team overlap in this horizon", "", ""]])],
+    { x: 0.6, y: 4.65, w: 12.1, fontFace: "Arial", fontSize: 10, border: { type: "solid", color: "DDE2DF", pt: 0.6 }, fill: "FFFFFF" });
+  return pptx;
+}
+
+const EXPORT_STAMP = "2026-09-10";
+
+function exportProjectsExcel() {
+  try { window.XLSX.writeFile(buildProjectsExcel(), `project-workspace-${EXPORT_STAMP}.xlsx`, { compression: true }); showToast("Project Excel workbook exported"); }
+  catch (error) { showToast(error.message); }
+}
+function exportProjectsPdf() {
+  try { buildProjectsPdf().save(`project-workspace-${EXPORT_STAMP}.pdf`); showToast("Project PDF exported"); }
+  catch (error) { showToast(error.message); }
+}
+async function exportProjectsPptx() {
+  const button = document.querySelector("#exportProjectsPptx");
+  button.disabled = true;
+  try { await buildProjectsPptx().writeFile({ fileName: `project-workspace-${EXPORT_STAMP}.pptx` }); showToast("Project PowerPoint exported"); }
+  catch (error) { showToast(error.message); }
+  finally { button.disabled = false; }
+}
+function roadmapExportName() {
+  return `roadmap-q${roadmapQuarter + 1}-${fiscalYearLabel(selectedFiscalYear).toLowerCase()}-${EXPORT_STAMP}`;
+}
+function exportRoadmapExcel() {
+  try { window.XLSX.writeFile(buildRoadmapExcel(), `${roadmapExportName()}.xlsx`, { compression: true }); showToast("Roadmap Excel workbook exported"); }
+  catch (error) { showToast(error.message); }
+}
+function exportRoadmapPdf() {
+  try { buildRoadmapPdf().save(`${roadmapExportName()}.pdf`); showToast("Roadmap PDF exported"); }
+  catch (error) { showToast(error.message); }
+}
+async function exportRoadmapPptx() {
+  const button = document.querySelector("#exportRoadmapPptx");
+  button.disabled = true;
+  try { await buildRoadmapPptx().writeFile({ fileName: `${roadmapExportName()}.pptx` }); showToast("Roadmap PowerPoint exported"); }
+  catch (error) { showToast(error.message); }
+  finally { button.disabled = false; }
 }
 
 function buildTeamsExcel() {
@@ -1231,43 +1883,16 @@ function exportResourcesExcel() { try { window.XLSX.writeFile(buildResourcesExce
 function exportResourcesPdf() { try { buildDirectoryPdf("resource").save("aster-resource-directory-2026-09-10.pdf"); showToast("Resource PDF exported"); } catch (error) { showToast(error.message); } }
 
 function timelineRange() {
-  const fiscal = fiscalYearBounds();
-  const anchor = AS_OF_DATE >= fiscal.start && AS_OF_DATE <= fiscal.end ? AS_OF_DATE : fiscal.start;
-  let start;
-  let end;
-  let label;
-  let milestoneLabel;
-
-  if (roadmapScaleMode === "month") {
-    start = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12);
-    end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 12);
-    label = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(start);
-    milestoneLabel = label;
-  } else if (roadmapScaleMode === "quarter") {
-    const fiscalMonth = (anchor.getMonth() - 3 + 12) % 12;
-    const quarter = Math.floor(fiscalMonth / 3);
-    start = new Date(fiscal.start.getFullYear(), 3 + quarter * 3, 1, 12);
-    end = new Date(start.getFullYear(), start.getMonth() + 3, 0, 12);
-    label = `Q${quarter + 1} ${fiscalYearLabel(selectedFiscalYear)} · ${monthNames[start.getMonth()]}-${monthNames[end.getMonth()]}`;
-    milestoneLabel = `Q${quarter + 1} ${fiscalYearLabel(selectedFiscalYear)}`;
-  } else {
-    start = fiscal.start;
-    end = fiscal.end;
-    label = `${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1}-Mar ${selectedFiscalYear}`;
-    milestoneLabel = `${fiscalYearLabel(selectedFiscalYear)} horizon`;
-  }
+  // The roadmap horizon is always one fiscal quarter of the selected FY (Apr 1 - Mar 31).
+  const { start, end } = fiscalQuarterBounds(roadmapQuarter);
+  const label = `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} · ${monthNames[start.getMonth()]}-${monthNames[end.getMonth()]}`;
+  const milestoneLabel = `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)}`;
 
   const periods = [];
-  if (roadmapScaleMode === "month") {
-    const days = end.getDate();
-    for (let day = 1; day <= days; day += 7) {
-      const periodDays = Math.min(7, days - day + 1);
-      periods.push({ label: `${monthNames[start.getMonth()]} ${day}`, days: periodDays });
-    }
-  } else {
+  {
     const pointer = new Date(start);
     while (pointer <= end) {
-      periods.push({ label: `${monthNames[pointer.getMonth()]} ${String(pointer.getFullYear()).slice(2)}`, days: new Date(pointer.getFullYear(), pointer.getMonth() + 1, 0).getDate() });
+      periods.push({ label: `${monthNames[pointer.getMonth()]} ${String(pointer.getFullYear()).slice(2)}`, days: new Date(pointer.getFullYear(), pointer.getMonth() + 1, 0).getDate(), isPeriodStart: [3, 6, 9, 0].includes(pointer.getMonth()) });
       pointer.setMonth(pointer.getMonth() + 1);
     }
   }
@@ -1279,6 +1904,151 @@ function getRoadmapVisibleProjects() {
   return getFiscalProjects().filter(project => (roadmapTeam === "all" || project.team === roadmapTeam) && new Date(`${project.end}T12:00:00`) >= range.start && new Date(`${project.start}T12:00:00`) <= range.end);
 }
 
+function timelineBarClass(status) {
+  if (statusGroups.upcoming.includes(status)) return "timeline-bar upcoming";
+  if (statusGroups.done.includes(status)) return "timeline-bar done";
+  if (statusGroups.attention.includes(status)) return "timeline-bar attention";
+  return "timeline-bar";
+}
+
+function scheduleContentions() {
+  const overlaps = [];
+  const visible = getRoadmapVisibleProjects();
+  visible.forEach((project, index) => {
+    visible.slice(index + 1).forEach(other => {
+      if (project.team !== other.team) return;
+      const start = new Date(`${project.start}T12:00:00`);
+      const end = new Date(`${project.end}T12:00:00`);
+      const otherStart = new Date(`${other.start}T12:00:00`);
+      const otherEnd = new Date(`${other.end}T12:00:00`);
+      if (start > otherEnd || otherStart > end) return;
+      const days = Math.round((Math.min(end, otherEnd) - Math.max(start, otherStart)) / DAY);
+      if (days > 0) overlaps.push({ team: project.team, a: project, b: other, days });
+    });
+  });
+  return overlaps.sort((first, second) => second.days - first.days);
+}
+
+function renderRoadmapContention() {
+  const overlaps = scheduleContentions();
+  document.querySelector("#contentionCount").textContent = overlaps.length;
+  document.querySelector("#contentionFlows").innerHTML = overlaps.length
+    ? overlaps.slice(0, 4).map((overlap, index) => `
+      <div class="dependency-flow">
+        <div><span class="project-icon ${colors[index % 4]}">${overlap.a.code}</span><strong>${overlap.a.name}</strong></div>
+        <i data-lucide="arrow-left-right"></i>
+        <div><span class="project-icon ${colors[(index + 2) % 4]}">${overlap.b.code}</span><strong>${overlap.b.name}</strong></div>
+        <span class="dependency-meta">${overlap.team} - ${overlap.days}d overlap</span>
+      </div>`).join("")
+    : `<p class="dependency-empty">No two initiatives on the same team overlap in this horizon.</p>`;
+  const note = document.querySelector("#contentionNote");
+  note.innerHTML = `${iconMarkup(overlaps.length ? "triangle-alert" : "circle-check")}<span>${overlaps.length
+    ? `${overlaps.length} ${overlaps.length === 1 ? "pair" : "pairs"} of initiatives share a team at the same time - confirm capacity before committing dates.`
+    : "Every team runs one initiative at a time in this horizon."}</span>`;
+  note.classList.toggle("warning", overlaps.length > 0);
+}
+
+function roadmapSuccessMetrics() {
+  const range = timelineRange();
+  const visible = getRoadmapVisibleProjects();
+  const delivery = visible.filter(project => deliveryStatuses.includes(project.status));
+  const healthy = visible.filter(project => statusGroups.healthy.includes(project.status)).length;
+  const holding = delivery.filter(project => !["Off track", "Pause"].includes(project.status)).length;
+  const milestones = visible.filter(project => {
+    const date = new Date(`${project.milestoneDate}T12:00:00`);
+    return date >= range.start && date <= range.end;
+  }).length;
+  const share = (count, total) => (total ? Math.round(count / total * 100) : 0);
+  return [
+    { label: "On-track share", value: share(healthy, delivery.length), unit: "%", target: 80, hint: `${healthy} of ${delivery.length} in delivery` },
+    { label: "Schedule confidence", value: share(holding, delivery.length), unit: "%", target: 90, hint: "not off track or paused" },
+    { label: "Average completion", value: visible.length ? Math.round(visible.reduce((sum, project) => sum + project.progress, 0) / visible.length) : 0, unit: "%", target: 60, hint: `across ${visible.length} ${visible.length === 1 ? "initiative" : "initiatives"}` },
+    { label: "Milestones committed", value: milestones, unit: "", target: null, hint: range.milestoneLabel }
+  ];
+}
+
+const STRATEGY_GOAL_SLOTS = 4;
+
+function openStrategyModal() {
+  const form = document.querySelector("#strategyForm");
+  form.elements.vision.value = roadmapStrategy.vision || "";
+  document.querySelector("#strategyGoalFields").innerHTML = Array.from({ length: STRATEGY_GOAL_SLOTS }, (_, index) => {
+    const goal = roadmapStrategy.goals?.[index] || {};
+    return `<fieldset class="strategy-goal-row">
+      <legend>Goal ${index + 1}</legend>
+      <label>Title<input name="goalTitle${index}" maxlength="48" value="${(goal.title || "").replace(/"/g, "&quot;")}" placeholder="Leave blank to remove"></label>
+      <label>Outcome<input name="goalOutcome${index}" maxlength="140" value="${(goal.outcome || "").replace(/"/g, "&quot;")}" placeholder="What changes for Albertans"></label>
+      <label>Now<input name="goalCurrent${index}" type="number" min="0" step="any" value="${goal.current ?? ""}"></label>
+      <label>Target<input name="goalTarget${index}" type="number" min="0" step="any" value="${goal.target ?? ""}"></label>
+      <label>Unit<input name="goalUnit${index}" maxlength="12" value="${(goal.unit || "").replace(/"/g, "&quot;")}" placeholder="% or blank"></label>
+    </fieldset>`;
+  }).join("");
+  document.querySelector("#strategyModal").showModal();
+  refreshIcons();
+}
+
+function submitStrategy(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(document.querySelector("#strategyForm")));
+  roadmapStrategy.vision = data.vision.trim();
+  roadmapStrategy.goals = Array.from({ length: STRATEGY_GOAL_SLOTS }, (_, index) => ({
+    id: index + 1,
+    title: (data[`goalTitle${index}`] || "").trim(),
+    outcome: (data[`goalOutcome${index}`] || "").trim(),
+    current: Number(data[`goalCurrent${index}`]) || 0,
+    target: Number(data[`goalTarget${index}`]) || 0,
+    unit: (data[`goalUnit${index}`] || "").trim()
+  })).filter(goal => goal.title);
+  saveRoadmapStrategy();
+  document.querySelector("#strategyModal").close();
+  renderRoadmapStrategy();
+  showToast("Roadmap strategy updated");
+}
+
+function renderRoadmapStrategy() {
+  document.querySelector("#roadmapVisionText").textContent = roadmapStrategy.vision || "No guiding vision recorded yet.";
+  const goals = roadmapStrategy.goals || [];
+  document.querySelector("#roadmapGoalCount").textContent = goals.length;
+  document.querySelector("#roadmapGoals").innerHTML = goals.length
+    ? goals.map(goal => {
+        const target = Number(goal.target) || 0;
+        const current = Number(goal.current) || 0;
+        const percent = target ? Math.min(100, Math.round(current / target * 100)) : 0;
+        const state = percent >= 100 ? "met" : percent >= 70 ? "on-track" : "behind";
+        return `<article class="goal-card">
+          <div class="goal-card-top"><strong>${goal.title}</strong><span class="goal-state goal-${state}">${percent}% to target</span></div>
+          <p>${goal.outcome}</p>
+          <div class="goal-track"><span style="width:${percent}%"></span></div>
+          <div class="goal-figures"><span>Now <strong>${current}${goal.unit || ""}</strong></span><span>Target <strong>${target}${goal.unit || ""}</strong></span></div>
+        </article>`;
+      }).join("")
+    : `<p class="goal-empty">No strategic goals recorded. Use Edit strategy to add the outcomes this roadmap serves.</p>`;
+
+  document.querySelector("#roadmapMetrics").innerHTML = roadmapSuccessMetrics().map(metric => {
+    const state = metric.target === null ? "neutral" : metric.value >= metric.target ? "met" : metric.value >= metric.target - 15 ? "watch" : "behind";
+    return `<article class="success-metric metric-${state}">
+      <span class="success-metric-label">${metric.label}</span>
+      <strong>${metric.value}${metric.unit}</strong>
+      <small>${metric.hint}</small>
+      <span class="success-metric-target">${metric.target === null ? "No target set" : `Target ${metric.target}${metric.unit}`}</span>
+    </article>`;
+  }).join("");
+}
+
+function renderQuarterPicker() {
+  const picker = document.querySelector("#roadmapQuarterPicker");
+  const currentQuarter = fiscalQuarterOf(AS_OF_DATE);
+  const inCurrentFiscalYear = getFiscalYear(AS_OF_DATE) === selectedFiscalYear;
+  const fyLabel = fiscalYearLabel(selectedFiscalYear);
+  const quarterButtons = FISCAL_QUARTERS.map((entry, index) => {
+    const active = index === roadmapQuarter;
+    const isNow = inCurrentFiscalYear && index === currentQuarter;
+    return `<button data-quarter="${index}" class="${active ? "active" : ""}" type="button" aria-pressed="${active}" title="Q${entry.quarter} ${fyLabel} - ${entry.months}">Q${entry.quarter}${isNow ? '<i class="quarter-now" aria-label="current quarter"></i>' : ""}</button>`;
+  }).join("");
+  picker.innerHTML = quarterButtons;
+  document.querySelector("#roadmapFiscalNoteYear").textContent = fyLabel;
+}
+
 function renderRoadmap() {
   const range = timelineRange();
   const visible = getRoadmapVisibleProjects();
@@ -1286,34 +2056,52 @@ function renderRoadmap() {
   const todayPosition = AS_OF_DATE >= range.start && AS_OF_DATE <= range.end ? (AS_OF_DATE - range.start + DAY / 2) / range.duration * 100 : null;
   document.querySelector("#roadmapPeriodLabel").textContent = range.label;
   document.querySelector("#roadmapMilestoneWindow").textContent = range.milestoneLabel;
-  elements.timeline.dataset.timelineScale = roadmapScaleMode;
-  elements.timeline.innerHTML = `
-    <div class="timeline-header"><div class="timeline-project-heading">Project</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>
-    ${visible.map((project, index) => {
-      const projectStart = new Date(`${project.start}T12:00:00`);
-      const projectEnd = new Date(`${project.end}T12:00:00`);
-      const milestoneDate = new Date(`${project.milestoneDate}T12:00:00`);
-      const clippedStart = projectStart < range.start ? range.start : projectStart;
-      const clippedEnd = projectEnd > range.end ? new Date(range.end.getTime() + DAY) : new Date(projectEnd.getTime() + DAY);
-      const start = (clippedStart - range.start) / range.duration * 100;
-      const width = Math.max(0, (clippedEnd - clippedStart) / range.duration * 100);
-      const milestone = (milestoneDate - range.start + DAY / 2) / range.duration * 100;
-      const milestoneMarkup = milestoneDate >= range.start && milestoneDate <= range.end ? `<span class="timeline-milestone" style="--position:${milestone}%" title="${project.milestone}"></span>` : "";
-      const barColor = ["#176b53", "#e66f51", "#36709b", "#c78218"][index % 4];
-      return `<div class="timeline-row"><div class="timeline-project"><span class="project-icon ${colors[index % 4]}">${project.code}</span><div><strong>${project.name}</strong><small>${project.team}</small></div></div><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}"><span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(() => "<i></i>").join("")}</span>${todayPosition === null ? "" : `<span class="today-line"></span>`}<button class="timeline-bar open-project ${project.status === "Planned" ? "planned" : ""}" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${barColor}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)}">${project.progress}%</button>${milestoneMarkup}</div></div>`;
-    }).join("")}`;
 
-  const completed = visible.filter(project => project.progress >= 75).length;
-  const planned = visible.filter(project => project.status === "Planned").length;
+  const bands = quarterBands(range);
+  const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
+  let barIndex = 0;
+  const laneMarkup = projectUnits
+    .map(unit => ({ unit, items: visible.filter(project => project.unit === unit) }))
+    .filter(lane => lane.items.length)
+    .map(lane => {
+      const rows = lane.items.map(project => {
+        const projectStart = new Date(`${project.start}T12:00:00`);
+        const projectEnd = new Date(`${project.end}T12:00:00`);
+        const milestoneDate = new Date(`${project.milestoneDate}T12:00:00`);
+        const clippedStart = projectStart < range.start ? range.start : projectStart;
+        const clippedEnd = projectEnd > range.end ? new Date(range.end.getTime() + DAY) : new Date(projectEnd.getTime() + DAY);
+        const start = (clippedStart - range.start) / range.duration * 100;
+        const width = Math.max(0, (clippedEnd - clippedStart) / range.duration * 100);
+        const milestone = (milestoneDate - range.start + DAY / 2) / range.duration * 100;
+        const milestoneMarkup = milestoneDate >= range.start && milestoneDate <= range.end
+          ? `<span class="timeline-milestone" style="--position:${milestone}%" title="${project.milestone} - ${formatDate(project.milestoneDate)}"></span>`
+          : "";
+        const icon = colors[barIndex % 4];
+        barIndex += 1;
+        return `<div class="timeline-row"><div class="timeline-project"><span class="project-icon ${icon}">${project.code}</span><div><strong title="${project.name}">${project.name}</strong><small>${project.team} - ${project.owner}</small></div></div><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}">${gridMarkup}${todayPosition === null ? "" : `<span class="today-line"></span>`}<button class="${timelineBarClass(project.status)} open-project" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete" aria-label="${project.name}, ${project.status}, ${project.progress}% complete"><span class="timeline-bar-fill" style="width:${project.progress}%"></span><span class="timeline-bar-label">${project.progress}%</span></button>${milestoneMarkup}</div></div>`;
+      }).join("");
+      const laneTotal = lane.items.length;
+      return `<div class="timeline-lane"><div class="timeline-lane-heading"><span>${lane.unit}</span><small>${laneTotal} ${laneTotal === 1 ? "initiative" : "initiatives"}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${rows}`;
+    }).join("");
+
+  elements.timeline.innerHTML = `
+    <div class="timeline-header"><div class="timeline-project-heading"><span>Initiative</span><small>${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(205px + (100% - 205px) * ${todayPosition / 100})">Today</span>`}</div>
+    ${laneMarkup || `<p class="timeline-empty">No initiatives fall inside this horizon.</p>`}`;
+
+  const nearing = visible.filter(project => project.progress >= 75).length;
+  const planned = visible.filter(project => statusGroups.upcoming.includes(project.status)).length;
   const milestones = visible.filter(project => new Date(`${project.milestoneDate}T12:00:00`) >= range.start && new Date(`${project.milestoneDate}T12:00:00`) <= range.end).length;
   const summary = [
     ["active", visible.length, "Portfolio initiatives", "folder-kanban", "#176b53", "#dceee7"],
-    ["nearing", completed, "Nearing completion", "badge-check", "#36709b", "#e2edf5"],
+    ["nearing", nearing, "Nearing completion", "badge-check", "#36709b", "#e2edf5"],
     ["planned", planned, "Planned next", "calendar-clock", "#c78218", "#fbefd8"],
     ["milestones", milestones, "Milestones ahead", "flag", "#e66f51", "#fbe6df"]
   ];
   elements.roadmapSummary.innerHTML = summary.map(item => `<button class="roadmap-summary-item drilldown-card" data-drilldown="${item[0]}" type="button" style="--summary-color:${item[4]};--summary-bg:${item[5]}" aria-label="Drill down into ${item[2]}"><i>${iconMarkup(item[3])}</i><div><strong>${item[1]}</strong><span>${item[2]}</span></div>${iconMarkup("chevron-right")}</button>`).join("");
   renderMilestones(visible, range);
+  renderRoadmapContention();
+  renderRoadmapStrategy();
+  renderQuarterPicker();
   refreshIcons();
 }
 
@@ -1448,6 +2236,8 @@ function openModal() {
   elements.form.elements.start.value = start.toISOString().slice(0, 10);
   elements.form.elements.end.value = end.toISOString().slice(0, 10);
   elements.form.elements.milestoneDate.value = new Date(start.getTime() + 45 * DAY).toISOString().slice(0, 10);
+  projectTeamTouched = false;
+  populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
   document.querySelector("#projectModalKicker").textContent = "Portfolio intake";
   document.querySelector("#projectModalTitle").textContent = "Create a new project";
   document.querySelector("#saveProjectButton span").textContent = "Create project";
@@ -1462,7 +2252,9 @@ function openEditProjectModal(projectId) {
   if (!project) return;
   projectBeingEdited = project.id;
   elements.form.reset();
-  const values = { name: project.name, unit: project.unit, owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
+  projectTeamTouched = true;
+  populateProjectTeamOptions(project.team);
+  const values = { name: project.name, unit: project.unit, team: project.team, owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
   Object.entries(values).forEach(([field, value]) => { elements.form.elements[field].value = value; });
   document.querySelector("#projectModalKicker").textContent = "Project management";
   document.querySelector("#projectModalTitle").textContent = `Edit ${project.name}`;
@@ -1540,6 +2332,7 @@ function openResourceModal() {
   document.querySelector("#resourceModalTitle").textContent = "New resource";
   document.querySelector("#resourceModalDescription").textContent = "Assign a person to a standard role and synchronize the selected team.";
   document.querySelector("#saveResourceButton span").textContent = "Create resource";
+  updateResourceMoveWarning();
   elements.resourceModal.showModal();
   refreshIcons();
 }
@@ -1559,24 +2352,74 @@ function openModifyResourceModal(resourceId) {
   document.querySelector("#resourceModalTitle").textContent = `Modify ${resource.name}`;
   document.querySelector("#resourceModalDescription").textContent = "Update this assignment and synchronize the affected teams.";
   document.querySelector("#saveResourceButton span").textContent = "Save changes";
+  updateResourceMoveWarning();
   elements.resourceModal.showModal();
   refreshIcons();
+}
+
+function teamRoleSlotsFor(team, name) {
+  if (!name) return [];
+  return teamRoleFields.map(([, label]) => label).filter(label => team.roles[label] === name);
+}
+
+function plannedResourceMove(data) {
+  const team = teamDirectory.find(item => item.id === Number(data.assignedTeam));
+  if (!team) return null;
+  const name = data.resourceName.trim();
+  const previousTeam = resourceBeingEdited ? teamDirectory.find(item => item.id === resourceBeingEdited.teamId) : null;
+  const movingTeams = Boolean(previousTeam) && previousTeam.id !== team.id;
+  // Moving a person to another team carries every role they hold on the old team.
+  const sourceRoles = movingTeams ? teamRoleSlotsFor(previousTeam, resourceBeingEdited.name) : [];
+  const targetRoles = movingTeams
+    ? sourceRoles.map(role => (role === resourceBeingEdited.role ? data.resourceRole : role))
+    : [data.resourceRole];
+  const displaced = [...new Set(targetRoles.map(role => team.roles[role]).filter(person => person && person !== name))];
+  return { team, previousTeam, movingTeams, name, sourceRoles, targetRoles, displaced };
+}
+
+function updateResourceMoveWarning() {
+  const warning = document.querySelector("#resourceMoveWarning");
+  if (!warning) return;
+  const plan = plannedResourceMove(Object.fromEntries(new FormData(elements.resourceForm)));
+  if (!plan) { warning.textContent = ""; return; }
+  const notes = [];
+  if (plan.movingTeams && plan.sourceRoles.length > 1) {
+    notes.push(`${plan.name} holds ${plan.sourceRoles.length} roles on ${plan.previousTeam.name} - all of them move to ${plan.team.name}.`);
+  }
+  if (plan.displaced.length) {
+    notes.push(`This replaces ${plan.displaced.join(" and ")} on ${plan.team.name}.`);
+  }
+  warning.textContent = notes.join(" ");
+  warning.hidden = notes.length === 0;
 }
 
 function submitResource(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(elements.resourceForm));
-  const team = teamDirectory.find(item => item.id === Number(data.assignedTeam));
-  if (!team) return;
-  if (resourceBeingEdited) {
-    const previousTeam = teamDirectory.find(item => item.id === resourceBeingEdited.teamId);
-    if (previousTeam && previousTeam.roles[resourceBeingEdited.role] === resourceBeingEdited.name && (previousTeam.id !== team.id || resourceBeingEdited.role !== data.resourceRole)) {
-      previousTeam.roles[resourceBeingEdited.role] = "";
-      if (previousTeam.resourceMeta) delete previousTeam.resourceMeta[resourceBeingEdited.role];
-      recomputeTeamMembers(previousTeam);
-    }
+  const plan = plannedResourceMove(data);
+  if (!plan) return;
+  const { team, previousTeam, movingTeams, name, sourceRoles, displaced } = plan;
+  if (movingTeams) {
+    sourceRoles.forEach(role => {
+      const targetRole = role === resourceBeingEdited.role ? data.resourceRole : role;
+      const carriedMeta = previousTeam.resourceMeta?.[role];
+      previousTeam.roles[role] = "";
+      if (previousTeam.resourceMeta) delete previousTeam.resourceMeta[role];
+      team.roles[targetRole] = name;
+      if (carriedMeta) {
+        team.resourceMeta = team.resourceMeta || {};
+        team.resourceMeta[targetRole] = { ...carriedMeta };
+      }
+    });
+    recomputeTeamMembers(previousTeam);
+  } else if (previousTeam && previousTeam.roles[resourceBeingEdited.role] === resourceBeingEdited.name && resourceBeingEdited.role !== data.resourceRole) {
+    previousTeam.roles[resourceBeingEdited.role] = "";
+    if (previousTeam.resourceMeta) delete previousTeam.resourceMeta[resourceBeingEdited.role];
+    recomputeTeamMembers(previousTeam);
   }
-  team.roles[data.resourceRole] = data.resourceName.trim();
+  const previousResourceId = resourceBeingEdited ? `${resourceBeingEdited.teamId}-${slug(resourceBeingEdited.role)}` : null;
+  const savedResourceId = `${team.id}-${slug(data.resourceRole)}`;
+  team.roles[data.resourceRole] = name;
   team.resourceMeta = team.resourceMeta || {};
   team.resourceMeta[data.resourceRole] = { allocation: Number(data.allocation), availability: data.availability };
   recomputeTeamMembers(team);
@@ -1586,7 +2429,14 @@ function submitResource(event) {
   elements.resourceForm.reset();
   renderTeams();
   renderResources();
-  showToast(resourceBeingEdited ? `${data.resourceName.trim()} updated` : `${data.resourceName.trim()} assigned to ${team.name}`);
+  if (drawerState?.level === "resource" && [previousResourceId, savedResourceId].includes(drawerState.resourceId)) {
+    if (findResource(savedResourceId)) renderResourceDrawer(savedResourceId);
+    else closeDrawer();
+  }
+  const moved = movingTeams
+    ? `${name} moved to ${team.name}${sourceRoles.length > 1 ? ` with ${sourceRoles.length} roles` : ""}`
+    : resourceBeingEdited ? `${name} updated` : `${name} assigned to ${team.name}`;
+  showToast(displaced.length ? `${moved} - replaced ${displaced.join(" and ")}` : moved);
   resourceBeingEdited = null;
 }
 
@@ -1622,13 +2472,23 @@ function submitTeam(event) {
   const roleEntries = teamRoleFields.map(([field, label]) => [label, data[field].trim()]);
   const members = [...new Set(roleEntries.map(([, member]) => member).filter(Boolean))];
   const existing = teamDirectory.find(team => team.id === teamBeingEdited);
+  const previousName = existing?.name;
   if (existing) {
     Object.assign(existing, { name: data.teamName.trim(), lead: data.productOwner.trim(), headcount: members.length, members, roles: Object.fromEntries(roleEntries) });
   } else {
     const id = Math.max(0, ...teamDirectory.map(team => team.id)) + 1;
     teamDirectory.push({ id, name: data.teamName.trim(), specialty: "Cross-functional Delivery", lead: data.productOwner.trim(), capacity: 0, headcount: members.length, projectIds: [], members, roles: Object.fromEntries(roleEntries) });
   }
+  const renamedProjects = previousName && previousName !== data.teamName.trim()
+    ? projects.filter(project => project.team === previousName)
+    : [];
+  renamedProjects.forEach(project => { project.team = data.teamName.trim(); });
   saveTeams();
+  if (renamedProjects.length) {
+    saveProjects();
+    populateTeamFilters();
+    renderAll();
+  }
   elements.teamModal.close();
   elements.teamForm.reset();
   renderTeams();
@@ -1655,7 +2515,7 @@ function submitProject(event) {
   const memberNames = [data.owner, ...contributorNames.filter(name => name.toLowerCase() !== data.owner.toLowerCase())];
   const existing = projects.find(project => project.id === projectBeingEdited);
   const members = existing && !existing.memberNames && !contributorNames.length ? [initials(data.owner), ...existing.members.slice(1)] : memberNames.map(initials);
-  const projectData = { name: data.name, code: initials(data.name), team: unitTeamAssignments[data.unit], unit: data.unit, owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -1752,13 +2612,14 @@ document.querySelectorAll("[data-layout]").forEach(button => button.addEventList
   renderProjects();
 }));
 
-document.querySelectorAll("[data-scale]").forEach(button => button.addEventListener("click", () => {
-  roadmapScaleMode = button.dataset.scale;
-  document.querySelectorAll("#roadmapScale [data-scale]").forEach(item => item.classList.toggle("active", item === button));
-  document.querySelectorAll("#roadmapScale [data-scale]").forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+
+document.querySelector("#roadmapQuarterPicker").addEventListener("click", event => {
+  const button = event.target.closest("[data-quarter]");
+  if (!button) return;
+  roadmapQuarter = Number(button.dataset.quarter);
   renderRoadmap();
-  showToast(`${button.textContent} timeline selected`);
-}));
+  showToast(`Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} selected`);
+});
 
 document.querySelector("#globalSearch").addEventListener("input", event => { query = event.target.value; if (activeView !== "projects") switchView("projects"); renderProjects(); });
 document.querySelector("#statusFilter").addEventListener("change", event => { statusFilter = event.target.value; renderProjects(); });
@@ -1780,12 +2641,22 @@ document.querySelector("#exportExcel").addEventListener("click", exportReportExc
 document.querySelector("#exportPdf").addEventListener("click", exportReportPdf);
 document.querySelector("#exportPptx").addEventListener("click", exportReportPptx);
 document.querySelector("#printReport").addEventListener("click", () => window.print());
+document.querySelector("#exportProjectsExcel").addEventListener("click", exportProjectsExcel);
+document.querySelector("#exportProjectsPdf").addEventListener("click", exportProjectsPdf);
+document.querySelector("#exportProjectsPptx").addEventListener("click", exportProjectsPptx);
+document.querySelector("#exportRoadmapExcel").addEventListener("click", exportRoadmapExcel);
+document.querySelector("#exportRoadmapPdf").addEventListener("click", exportRoadmapPdf);
+document.querySelector("#exportRoadmapPptx").addEventListener("click", exportRoadmapPptx);
 document.querySelector("#exportTeamsExcel").addEventListener("click", exportTeamsExcel);
 document.querySelector("#exportTeamsPdf").addEventListener("click", exportTeamsPdf);
 document.querySelector("#exportResourcesExcel").addEventListener("click", exportResourcesExcel);
 document.querySelector("#exportResourcesPdf").addEventListener("click", exportResourcesPdf);
 document.querySelector("#menuButton").addEventListener("click", () => document.querySelector("#sidebar").classList.toggle("open"));
 document.querySelector("#openProjectModal").addEventListener("click", openPrimaryCreateModal);
+document.querySelector("#editStrategyButton").addEventListener("click", openStrategyModal);
+document.querySelector("#closeStrategyModal").addEventListener("click", () => document.querySelector("#strategyModal").close());
+document.querySelector("#cancelStrategyModal").addEventListener("click", () => document.querySelector("#strategyModal").close());
+document.querySelector("#strategyForm").addEventListener("submit", submitStrategy);
 document.querySelector("#roadmapAddProject").addEventListener("click", openModal);
 document.querySelector("#closeProjectModal").addEventListener("click", () => { elements.modal.close(); projectBeingEdited = null; });
 document.querySelector("#cancelProjectModal").addEventListener("click", () => { elements.modal.close(); projectBeingEdited = null; });
@@ -1812,10 +2683,14 @@ document.querySelector("#projectTemplateFile").addEventListener("change", event 
 document.querySelector("#templateDropZone").addEventListener("dragover", event => { event.preventDefault(); event.currentTarget.classList.add("dragging"); });
 document.querySelector("#templateDropZone").addEventListener("dragleave", event => event.currentTarget.classList.remove("dragging"));
 document.querySelector("#templateDropZone").addEventListener("drop", event => { event.preventDefault(); event.currentTarget.classList.remove("dragging"); if (event.dataTransfer.files[0]) readProjectTemplate(event.dataTransfer.files[0]); });
-document.querySelector("#todayButton").addEventListener("click", () => { setFiscalYear(getFiscalYear(AS_OF_DATE)); document.querySelector(".today-line")?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); showToast(`Timeline centered on today in ${fiscalYearLabel(selectedFiscalYear)}`); });
+document.querySelector("#todayButton").addEventListener("click", () => { roadmapQuarter = fiscalQuarterOf(AS_OF_DATE); setFiscalYear(getFiscalYear(AS_OF_DATE)); document.querySelector(".today-line")?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); showToast(`Timeline centered on today in ${fiscalYearLabel(selectedFiscalYear)}`); });
 elements.form.addEventListener("submit", submitProject);
 elements.teamForm.addEventListener("submit", submitTeam);
 elements.resourceForm.addEventListener("submit", submitResource);
+["assignedTeam", "resourceRole", "resourceName"].forEach(field => {
+  elements.resourceForm.elements[field].addEventListener("change", updateResourceMoveWarning);
+  elements.resourceForm.elements[field].addEventListener("input", updateResourceMoveWarning);
+});
 elements.loginForm.addEventListener("submit", signIn);
 document.querySelector("#togglePassword").addEventListener("click", event => {
   const password = elements.loginForm.elements.password;
@@ -1840,6 +2715,10 @@ document.addEventListener("click", event => {
     document.querySelector("#userMenuButton").setAttribute("aria-expanded", "false");
   }
 });
+elements.form.elements.team.addEventListener("change", () => { projectTeamTouched = true; });
+elements.form.elements.unit.addEventListener("change", event => {
+  if (!projectTeamTouched) populateProjectTeamOptions(defaultTeamForUnit(event.target.value));
+});
 elements.form.elements.end.addEventListener("input", () => elements.form.elements.end.setCustomValidity(""));
 elements.form.elements.milestoneDate.addEventListener("input", () => elements.form.elements.milestoneDate.setCustomValidity(""));
 document.addEventListener("keydown", event => {
@@ -1852,4 +2731,5 @@ applyAuthState(loadAuthSession());
 populateTeamFilters();
 populateFiscalYearFilters();
 populateResourceFilters();
+populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
 renderAll();
