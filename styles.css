@@ -22,7 +22,7 @@
   --radius: 10px;
   --radius-sm: 6px;
   --radius-xs: 4px;
-  --timeline-label-width: 205px;
+  --timeline-label-width: 268px;
   /* Vibrant variants used only by the unit mix bars and their legend. The
      muted --green/--red/--blue tokens stay as they are everywhere else. */
   --bar-delivery: #10a35a;
@@ -414,7 +414,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 /* A bounded viewport: scrolls both ways, and the user can drag its bottom edge
    to give the timeline more room. The sticky header and sticky initiative
    column both anchor to this container. */
-.roadmap-scroll { position: relative; height: var(--timeline-viewport, min(58vh, 520px)); min-height: 220px; max-height: 88vh; overflow: auto; resize: vertical; overscroll-behavior: contain; }
+.roadmap-scroll { position: relative; height: var(--timeline-viewport, min(58vh, 520px)); min-height: 220px; max-height: 88vh; overflow: scroll; resize: vertical; overscroll-behavior: contain; }
 .roadmap-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
 .roadmap-scroll::-webkit-scrollbar-track { background: var(--canvas); }
 .roadmap-scroll::-webkit-scrollbar-thumb { background: #b9c4bf; background-clip: padding-box; border: 3px solid var(--canvas); border-radius: 99px; }
@@ -915,15 +915,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-lane-heading { gap: 7px; justify-content: flex-start; }
 .timeline-lane-heading small { margin-left: auto; }
 
-/* draggable ruler between the label column and the grid */
 .timeline-project > div { min-width: 0; }
-.timeline-resizer { position: absolute; top: 0; bottom: 0; left: var(--timeline-label-width); z-index: 7; width: 11px; padding: 0; background: none; border: 0; cursor: col-resize; transform: translateX(-5px); touch-action: none; }
-.timeline-resizer::before { position: absolute; top: 0; bottom: 0; left: 5px; width: 1px; content: ""; background: var(--line); transition: background .15s ease, width .15s ease; }
-.timeline-resizer::after { position: absolute; top: 21px; left: 1px; width: 9px; height: 22px; content: ""; background: #fff url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='22'%3E%3Cg fill='%23858d89'%3E%3Crect x='2' y='6' width='1' height='10' rx='.5'/%3E%3Crect x='4' y='6' width='1' height='10' rx='.5'/%3E%3Crect x='6' y='6' width='1' height='10' rx='.5'/%3E%3C/g%3E%3C/svg%3E") center no-repeat; border: 1px solid var(--line); border-radius: var(--radius-xs); }
-.timeline-resizer:hover::before, .timeline-resizer:focus-visible::before, .timeline-resizer.dragging::before { width: 2px; background: var(--green); }
-.timeline-resizer:focus-visible { outline: 2px solid var(--green); outline-offset: -1px; }
-.timeline-resizer:hover::after, .timeline-resizer.dragging::after { border-color: var(--green); }
-body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* scope inherited from the Projects section */
 .inherited-scope { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 9px 14px; color: #805811; background: var(--amber-soft); border: 1px solid #f0dcb0; border-radius: var(--radius-sm); }
@@ -959,3 +951,6 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 /* timeline width control */
 .toolbar-divider { width: 1px; height: 20px; flex: 0 0 auto; background: var(--line); }
 .timeline-zoom { flex: 0 0 auto; }
+
+/* frozen left pane: a shadow so it reads as pinned over the scrolling grid */
+.timeline-project-heading, .timeline-project, .timeline-lane-heading { box-shadow: 3px 0 6px -3px rgba(24, 32, 29, .18); }
