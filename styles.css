@@ -976,3 +976,17 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 /* the FY view packs twelve months in, so give it room and let it pan */
 .timeline[data-horizon="fy"] { min-width: calc(var(--timeline-label-width) + 1080px); }
 .quarter-picker .quarter-fy { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+
+/* Phases: a repeatable set of stages inside the project form */
+.phase-section { display: flex; flex-direction: column; gap: 9px; }
+.phase-row { display: grid; grid-template-columns: 1.6fr .9fr .9fr 1fr 30px; gap: 8px; margin: 0; padding: 10px 11px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.phase-row legend { padding: 0 5px; color: var(--muted); font-size: var(--fs-100); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.phase-row .phase-remove { display: grid; align-self: end; width: 30px; height: 36px; place-items: center; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
+.phase-row .phase-remove:hover { color: var(--red); background: var(--red-soft); border-color: #e9c4c4; }
+.phase-row .phase-remove svg { width: 14px; }
+.phase-empty { margin: 0; color: var(--muted); font-size: var(--fs-100); }
+.phase-add { align-self: flex-start; }
+@media (max-width: 820px) {
+  .phase-row { grid-template-columns: 1fr 1fr; }
+  .phase-row .phase-remove { grid-column: 1 / -1; width: 100%; }
+}

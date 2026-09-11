@@ -463,6 +463,12 @@
         <div class="form-section-title full-field"><span>03</span><div><strong>Roadmap milestone</strong><small>Next major gate shown on the portfolio timeline</small></div></div>
         <label>Milestone name<input name="milestone" required maxlength="50" placeholder="e.g. Beta release"></label>
         <label>Milestone date<input name="milestoneDate" type="date" required></label>
+        <div class="form-section-title full-field"><span>04</span><div><strong>Phases</strong><small>Optional stages within this project, each with its own dates and status</small></div></div>
+        <div class="full-field phase-section">
+          <div id="phaseRows"></div>
+          <p class="phase-empty" id="phaseEmpty">No phases yet. Add one to break this project into stages.</p>
+          <button class="secondary-button phase-add" id="addPhaseButton" type="button"><i data-lucide="plus"></i>Add phase</button>
+        </div>
       </div>
       <div class="modal-footer"><button class="text-button" id="cancelProjectModal" type="button">Cancel</button><button class="primary-button" id="saveProjectButton" type="submit"><i data-lucide="plus"></i><span>Create project</span></button></div>
     </form>

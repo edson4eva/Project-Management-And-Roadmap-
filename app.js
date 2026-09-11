@@ -378,9 +378,19 @@ function normalizeProjectUnit(project) {
   const [aliasUnit, aliasSub] = aliased.split("::");
   const unit = projectUnits.includes(aliasUnit) ? aliasUnit : projectUnits[0];
   const team = directoryTeamNames().includes(project.team) ? project.team : defaultTeamForUnit(unit);
+  const phases = Array.isArray(project.phases)
+    ? project.phases
+        .filter(phase => phase && typeof phase.name === "string" && phase.name.trim())
+        .map(phase => ({
+          name: phase.name.trim(),
+          start: phase.start || "",
+          end: phase.end || "",
+          status: projectStatuses.includes(phase.status) ? phase.status : projectStatuses[0]
+        }))
+    : [];
   const candidateSub = project.subUnit || aliasSub || "";
   const subUnit = subCategoriesFor(unit).includes(candidateSub) ? candidateSub : "";
-  return { ...projectWithoutCode, code: initials(project.name), unit, team, subUnit };
+  return { ...projectWithoutCode, code: initials(project.name), unit, team, subUnit, phases };
 }
 
 function directoryTeamNames() {
@@ -391,6 +401,41 @@ function defaultTeamForUnit(unit) {
   const names = directoryTeamNames();
   const preferred = unitTeamAssignments[unit];
   return names.includes(preferred) ? preferred : names[0] || preferred;
+}
+
+function phaseRowMarkup(phase = {}) {
+  const options = projectStatuses.map(status => `<option${status === phase.status ? " selected" : ""}>${status}</option>`).join("");
+  return `<fieldset class="phase-row">
+    <legend>Phase</legend>
+    <label>Name<input class="phase-name" maxlength="60" value="${(phase.name || "").replace(/"/g, "&quot;")}" placeholder="e.g. Discovery"></label>
+    <label>Start<input class="phase-start" type="date" value="${phase.start || ""}"></label>
+    <label>End<input class="phase-end" type="date" value="${phase.end || ""}"></label>
+    <label>Status<select class="phase-status">${options}</select></label>
+    <button class="phase-remove" data-remove-phase type="button" aria-label="Remove this phase" title="Remove this phase">${iconMarkup("trash-2")}</button>
+  </fieldset>`;
+}
+
+function renderPhaseRows(phases) {
+  document.querySelector("#phaseRows").innerHTML = (phases || []).map(phase => phaseRowMarkup(phase)).join("");
+  updatePhaseEmptyState();
+  refreshIcons();
+}
+
+function updatePhaseEmptyState() {
+  const count = document.querySelectorAll("#phaseRows .phase-row").length;
+  document.querySelector("#phaseEmpty").hidden = count > 0;
+}
+
+function readPhaseRows() {
+  return [...document.querySelectorAll("#phaseRows .phase-row")]
+    .map(row => ({
+      name: row.querySelector(".phase-name").value.trim(),
+      start: row.querySelector(".phase-start").value,
+      end: row.querySelector(".phase-end").value,
+      status: row.querySelector(".phase-status").value
+    }))
+    .filter(phase => phase.name)
+    .map(phase => ({ ...phase, status: projectStatuses.includes(phase.status) ? phase.status : projectStatuses[0] }));
 }
 
 function populateProjectUnitOptions(selected) {
@@ -2642,6 +2687,7 @@ function openModal() {
   projectTeamTouched = false;
   populateProjectUnitOptions(elements.form.elements.unit.value);
   populateProjectSubUnitOptions(elements.form.elements.unit.value, "");
+  renderPhaseRows([]);
   populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
   document.querySelector("#projectModalKicker").textContent = "Portfolio intake";
   document.querySelector("#projectModalTitle").textContent = "Create a new project";
@@ -2660,6 +2706,7 @@ function openEditProjectModal(projectId) {
   projectTeamTouched = true;
   populateProjectUnitOptions(project.unit);
   populateProjectSubUnitOptions(project.unit, project.subUnit);
+  renderPhaseRows(project.phases);
   populateProjectTeamOptions(project.team);
   const values = { name: project.name, unit: project.unit, team: project.team, subUnit: project.subUnit || "", owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
   Object.entries(values).forEach(([field, value]) => { elements.form.elements[field].value = value; });
@@ -2922,7 +2969,7 @@ function submitProject(event) {
   const memberNames = [data.owner, ...contributorNames.filter(name => name.toLowerCase() !== data.owner.toLowerCase())];
   const existing = projects.find(project => project.id === projectBeingEdited);
   const members = existing && !existing.memberNames && !contributorNames.length ? [initials(data.owner), ...existing.members.slice(1)] : memberNames.map(initials);
-  const projectData = { name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -3131,6 +3178,20 @@ document.querySelector("#closeStrategyModal").addEventListener("click", () => do
 document.querySelector("#cancelStrategyModal").addEventListener("click", () => document.querySelector("#strategyModal").close());
 document.querySelector("#strategyForm").addEventListener("submit", submitStrategy);
 document.querySelector("#roadmapAddProject").addEventListener("click", openModal);
+document.querySelector("#addPhaseButton").addEventListener("click", () => {
+  document.querySelector("#phaseRows").insertAdjacentHTML("beforeend", phaseRowMarkup());
+  updatePhaseEmptyState();
+  refreshIcons();
+  document.querySelector("#phaseRows .phase-row:last-child .phase-name")?.focus();
+});
+
+document.querySelector("#phaseRows").addEventListener("click", event => {
+  const remove = event.target.closest("[data-remove-phase]");
+  if (!remove) return;
+  remove.closest(".phase-row").remove();
+  updatePhaseEmptyState();
+});
+
 document.querySelector("#closeProjectModal").addEventListener("click", () => { elements.modal.close(); projectBeingEdited = null; });
 document.querySelector("#cancelProjectModal").addEventListener("click", () => { elements.modal.close(); projectBeingEdited = null; });
 document.querySelector("#closeTeamModal").addEventListener("click", () => { elements.teamModal.close(); teamBeingEdited = null; });
