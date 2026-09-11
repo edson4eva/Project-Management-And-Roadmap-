@@ -968,7 +968,6 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* timeline width control */
 .toolbar-divider { width: 1px; height: 20px; flex: 0 0 auto; background: var(--line); }
-.timeline-zoom { flex: 0 0 auto; }
 
 /* frozen left pane: a shadow so it reads as pinned over the scrolling grid */
 .timeline-project-heading, .timeline-project, .timeline-lane-heading { box-shadow: 3px 0 6px -3px rgba(24, 32, 29, .18); }
