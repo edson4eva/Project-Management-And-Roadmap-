@@ -23,6 +23,7 @@
   --radius-sm: 6px;
   --radius-xs: 4px;
   --timeline-label-width: 268px;
+  --timeline-gutter: 12px;
   /* Vibrant variants used only by the unit mix bars and their legend. The
      muted --green/--red/--blue tokens stay as they are everywhere else. */
   --bar-delivery: #10a35a;
@@ -430,7 +431,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-viewport-hint { display: flex; align-items: center; gap: 6px; padding: 6px 14px; color: var(--muted); font-size: var(--fs-100); font-weight: 600; background: #f8faf8; border-top: 1px solid var(--line); }
 .timeline-viewport-hint svg { width: 12px; flex: 0 0 auto; }
 .timeline { position: relative; min-width: 920px; }
-.timeline-header, .timeline-row { display: grid; grid-template-columns: var(--timeline-label-width) 1fr; }
+.timeline-header, .timeline-row { display: grid; grid-template-columns: var(--timeline-label-width) 1fr; padding-right: var(--timeline-gutter); }
 .timeline-header { position: sticky; top: 0; z-index: 4; min-height: 62px; background: #fafbfa; border-bottom: 1px solid var(--line); }
 .timeline-project-heading { position: sticky; left: 0; z-index: 5; display: flex; align-items: center; padding: 0 16px; color: var(--muted); background: #fafbfa; border-right: 1px solid var(--line); font-size: var(--fs-200); font-weight: 700; text-transform: uppercase; }
 .timeline-months { display: grid; grid-template-columns: repeat(6, 1fr); }
@@ -458,7 +459,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-bar.attention { box-shadow: 0 0 0 1px rgba(196, 78, 78, .35); }
 
 /* unit swimlanes */
-.timeline-lane { display: grid; grid-template-columns: var(--timeline-label-width) 1fr; background: #f6f8f6; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); }
+.timeline-lane { display: grid; grid-template-columns: var(--timeline-label-width) 1fr; padding-right: var(--timeline-gutter); background: #f6f8f6; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); }
 .timeline-lane-heading { position: sticky; left: 0; z-index: 3; display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; background: #f6f8f6; border-right: 1px solid var(--line); }
 .timeline-lane-heading span { overflow: hidden; color: var(--ink); font-size: var(--fs-200); font-weight: 800; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .timeline-lane-heading small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; white-space: nowrap; }
