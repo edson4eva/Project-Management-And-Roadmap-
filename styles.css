@@ -449,7 +449,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-grid i:nth-child(even) { background: rgba(24, 32, 29, .014); }
 .today-line { position: absolute; z-index: 1; top: 0; bottom: 0; left: var(--today); width: 1px; background: var(--coral); }
 .today-line::before { position: absolute; top: -4px; left: -4px; width: 9px; height: 9px; content: ""; background: var(--coral); border-radius: 50%; }
-.timeline-bar { position: absolute; z-index: 2; top: 23px; left: var(--start); width: var(--width); min-width: 18px; height: 24px; padding: 0 8px; overflow: hidden; color: #fff; background: var(--bar-color); border-radius: var(--radius-xs); font-size: var(--fs-100); font-weight: 600; line-height: 24px; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 3px 8px color-mix(in srgb, var(--bar-color) 25%, transparent); }
+.timeline-bar { position: absolute; z-index: 2; top: 23px; left: var(--start); width: calc(var(--width) - 8px); min-width: 18px; height: 24px; padding: 0 8px; overflow: hidden; color: #fff; background: var(--bar-color); border-radius: var(--radius-xs); font-size: var(--fs-100); font-weight: 600; line-height: 24px; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 3px 8px color-mix(in srgb, var(--bar-color) 25%, transparent); }
 .timeline-bar { display: flex; align-items: center; }
 .timeline-bar-fill { position: absolute; z-index: 0; top: 0; bottom: 0; left: 0; background: rgba(255, 255, 255, .26); }
 .timeline-bar-label { position: relative; z-index: 1; font-size: var(--fs-100); font-weight: 700; }
