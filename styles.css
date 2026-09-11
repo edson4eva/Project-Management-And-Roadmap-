@@ -877,3 +877,11 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-resizer:focus-visible { outline: 2px solid var(--green); outline-offset: -1px; }
 .timeline-resizer:hover::after, .timeline-resizer.dragging::after { border-color: var(--green); }
 body.timeline-resizing { cursor: col-resize; user-select: none; }
+
+/* scope inherited from the Projects section */
+.inherited-scope { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 9px 14px; color: #805811; background: var(--amber-soft); border: 1px solid #f0dcb0; border-radius: 6px; }
+.inherited-scope svg { width: 14px; flex: 0 0 auto; }
+.inherited-scope > div { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.inherited-scope strong { font-size: 11px; }
+.inherited-scope span { font-size: 10px; font-weight: 600; }
+.inherited-scope .text-button { flex: 0 0 auto; color: #805811; font-weight: 700; }

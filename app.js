@@ -215,7 +215,6 @@ let query = "";
 let statusFilter = "all";
 let teamFilter = "all";
 let unitFilter = "all";
-let roadmapTeam = "all";
 let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
 let selectedFiscalYear = getFiscalYear(AS_OF_DATE);
 let reportTeam = "all";
@@ -720,12 +719,43 @@ function refreshIcons() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-function getFilteredProjects() {
+// The Projects section owns portfolio scope. Every other view derives from this
+// predicate so a filter set on Projects is reflected wherever the data appears.
+function matchesProjectScope(project) {
   const normalized = query.trim().toLowerCase();
-  return getFiscalProjects().filter(project => {
-    const matchesQuery = !normalized || [project.name, project.owner, project.team, project.unit].some(value => value.toLowerCase().includes(normalized));
-    return matchesQuery && (statusFilter === "all" || project.status === statusFilter) && (teamFilter === "all" || project.team === teamFilter) && (unitFilter === "all" || matchesUnitFilter(project));
-  });
+  const matchesQuery = !normalized
+    || [project.name, project.owner, project.team, project.unit, project.subUnit].some(value => (value || "").toLowerCase().includes(normalized));
+  return matchesQuery
+    && (statusFilter === "all" || project.status === statusFilter)
+    && (teamFilter === "all" || project.team === teamFilter)
+    && (unitFilter === "all" || matchesUnitFilter(project));
+}
+
+function activeProjectScope() {
+  const parts = [];
+  if (statusFilter !== "all") parts.push({ label: "Status", value: statusFilter });
+  if (teamFilter !== "all") parts.push({ label: "Team", value: teamFilter });
+  if (unitFilter !== "all") {
+    parts.push({ label: "Unit", value: unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter });
+  }
+  if (query.trim()) parts.push({ label: "Search", value: query.trim() });
+  return parts;
+}
+
+function clearProjectScope() {
+  statusFilter = "all";
+  teamFilter = "all";
+  unitFilter = "all";
+  query = "";
+  document.querySelector("#globalSearch").value = "";
+  populateTeamFilters();
+  document.querySelector("#statusFilter").value = "all";
+  renderProjects();
+  if (activeView === "roadmap") renderRoadmap();
+}
+
+function getFilteredProjects() {
+  return getFiscalProjects().filter(matchesProjectScope);
 }
 
 function renderMetrics() {
@@ -1163,7 +1193,7 @@ function populateTeamFilters() {
   document.querySelector("#roadmapTeamFilter").innerHTML = options;
   document.querySelector("#reportTeam").innerHTML = options;
   document.querySelector("#teamFilter").value = teamFilter;
-  document.querySelector("#roadmapTeamFilter").value = roadmapTeam;
+  document.querySelector("#roadmapTeamFilter").value = teamFilter;
   document.querySelector("#reportTeam").value = reportTeam;
   const unitOptions = units.map(unit => {
     const subs = subCategoriesFor(unit).filter(sub => projects.some(project => project.unit === unit && project.subUnit === sub));
@@ -1797,7 +1827,7 @@ function roadmapExportData() {
     goals: roadmapStrategy.goals || [],
     metrics: roadmapSuccessMetrics(),
     contentions: scheduleContentions(),
-    team: roadmapTeam === "all" ? "All teams" : roadmapTeam
+    team: teamFilter === "all" ? "All teams" : teamFilter
   };
 }
 
@@ -2121,7 +2151,9 @@ function timelineRange() {
 
 function getRoadmapVisibleProjects() {
   const range = timelineRange();
-  return getFiscalProjects().filter(project => (roadmapTeam === "all" || project.team === roadmapTeam) && new Date(`${project.end}T12:00:00`) >= range.start && new Date(`${project.start}T12:00:00`) <= range.end);
+  return getFiscalProjects().filter(project => matchesProjectScope(project)
+    && new Date(`${project.end}T12:00:00`) >= range.start
+    && new Date(`${project.start}T12:00:00`) <= range.end);
 }
 
 function timelineBarClass(status) {
@@ -2147,6 +2179,15 @@ function scheduleContentions() {
     });
   });
   return overlaps.sort((first, second) => second.days - first.days);
+}
+
+function renderRoadmapScopeStrip() {
+  const scope = activeProjectScope();
+  const strip = document.querySelector("#roadmapScopeStrip");
+  strip.classList.toggle("hidden", scope.length === 0);
+  document.querySelector("#roadmapScopeDetail").textContent = scope.length
+    ? scope.map(part => `${part.label}: ${part.value}`).join("  ·  ")
+    : "";
 }
 
 function renderRoadmapContention() {
@@ -2373,6 +2414,7 @@ function renderRoadmap() {
   renderMilestones(visible, range);
   renderRoadmapContention();
   renderRoadmapStrategy();
+  renderRoadmapScopeStrip();
   renderQuarterPicker();
   refreshIcons();
 }
@@ -2938,6 +2980,8 @@ document.querySelectorAll("[data-layout]").forEach(button => button.addEventList
 }));
 
 
+document.querySelector("#clearRoadmapScope").addEventListener("click", clearProjectScope);
+
 document.querySelector("#roadmapQuarterPicker").addEventListener("click", event => {
   const button = event.target.closest("[data-quarter]");
   if (!button) return;
@@ -2948,9 +2992,9 @@ document.querySelector("#roadmapQuarterPicker").addEventListener("click", event 
 
 document.querySelector("#globalSearch").addEventListener("input", event => { query = event.target.value; if (activeView !== "projects") switchView("projects"); renderProjects(); });
 document.querySelector("#statusFilter").addEventListener("change", event => { statusFilter = event.target.value; renderProjects(); });
-document.querySelector("#teamFilter").addEventListener("change", event => { teamFilter = event.target.value; renderProjects(); });
+document.querySelector("#teamFilter").addEventListener("change", event => { teamFilter = event.target.value; populateTeamFilters(); renderProjects(); });
 document.querySelector("#unitFilter").addEventListener("change", event => { unitFilter = event.target.value; renderProjects(); });
-document.querySelector("#roadmapTeamFilter").addEventListener("change", event => { roadmapTeam = event.target.value; renderRoadmap(); });
+document.querySelector("#roadmapTeamFilter").addEventListener("change", event => { teamFilter = event.target.value; populateTeamFilters(); renderProjects(); renderRoadmap(); });
 document.querySelector("#projectFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
 document.querySelector("#roadmapFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
 document.querySelector("#reportFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
