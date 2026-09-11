@@ -941,3 +941,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .unit-mix-seg:last-child:not(:only-child) .unit-mix-tip { right: 0; left: auto; transform: translate(0, 5px); }
 .unit-mix-seg:last-child:not(:only-child):hover .unit-mix-tip, .unit-mix-seg:last-child:not(:only-child):focus-visible .unit-mix-tip { transform: translate(0, 0); }
 @media (prefers-reduced-motion: reduce) { .unit-mix-tip { transition: none; } }
+
+/* which build the browser actually loaded */
+.build-stamp { color: var(--muted); font-size: var(--fs-100); font-weight: 600; letter-spacing: .02em; }
+.project-heading .build-stamp { color: #8fa79b; }

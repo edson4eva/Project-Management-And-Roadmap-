@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=__BUILD__">
 </head>
 <body class="auth-pending">
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -115,6 +115,7 @@
               <label class="fiscal-selector"><span>Fiscal year</span><select id="projectFiscalYear" aria-label="Project fiscal year"></select></label>
               <span class="live-pill"><span></span>Live portfolio</span>
               <span id="currentDate"></span>
+              <span class="build-stamp" title="Loaded build">build __BUILD__</span>
               <div class="workspace-export-actions view-export-actions">
                 <button class="secondary-button" id="exportProjectsExcel" type="button"><i data-lucide="file-spreadsheet"></i>Excel</button>
                 <button class="secondary-button" id="exportProjectsPdf" type="button"><i data-lucide="file-text"></i>PDF</button>
@@ -560,6 +561,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=__BUILD__"></script>
 </body>
 </html>
