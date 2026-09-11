@@ -272,8 +272,11 @@ h3 { font-size: 14px; }
 .capacity-track, .progress-track { overflow: hidden; background: var(--line-soft); border-radius: 99px; }
 .capacity-track { height: 7px; }
 .capacity-track span, .progress-track span { display: block; height: 100%; background: var(--bar-color, var(--green)); border-radius: inherit; }
-.capacity-row { grid-template-columns: minmax(0, 110px) 1fr 30px; }
-.unit-mix-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Unit names run to 41 characters, so a single nowrap line clipped them to
+   "Unified Identity a...". The label column is wider and wraps instead of
+   truncating; every unit name reads in full. */
+.capacity-row { grid-template-columns: minmax(0, 136px) 1fr 30px; align-items: center; }
+.unit-mix-label { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: break-word; line-height: 1.25; }
 /* Unit mix bars get a raised, cylindrical treatment: the track reads recessed,
    each segment carries a top highlight and a shaded base. Scoped to this card
    so progress bars elsewhere stay flat. */
