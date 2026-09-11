@@ -215,6 +215,8 @@ let query = "";
 let statusFilter = "all";
 let teamFilter = "all";
 let unitFilter = "all";
+let ownerFilter = "all";
+let riskFilter = "all";
 let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
 let selectedFiscalYear = getFiscalYear(AS_OF_DATE);
 let reportTeam = "all";
@@ -728,7 +730,9 @@ function matchesProjectScope(project) {
   return matchesQuery
     && (statusFilter === "all" || project.status === statusFilter)
     && (teamFilter === "all" || project.team === teamFilter)
-    && (unitFilter === "all" || matchesUnitFilter(project));
+    && (unitFilter === "all" || matchesUnitFilter(project))
+    && (ownerFilter === "all" || project.owner === ownerFilter)
+    && (riskFilter === "all" || project.risk === riskFilter);
 }
 
 function activeProjectScope() {
@@ -738,6 +742,8 @@ function activeProjectScope() {
   if (unitFilter !== "all") {
     parts.push({ label: "Unit", value: unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter });
   }
+  if (ownerFilter !== "all") parts.push({ label: "Owner", value: ownerFilter });
+  if (riskFilter !== "all") parts.push({ label: "Risk", value: riskFilter });
   if (query.trim()) parts.push({ label: "Search", value: query.trim() });
   return parts;
 }
@@ -746,10 +752,13 @@ function clearProjectScope() {
   statusFilter = "all";
   teamFilter = "all";
   unitFilter = "all";
+  ownerFilter = "all";
+  riskFilter = "all";
   query = "";
   document.querySelector("#globalSearch").value = "";
   populateTeamFilters();
   document.querySelector("#statusFilter").value = "all";
+  document.querySelector("#riskFilter").value = "all";
   renderProjects();
   if (activeView === "roadmap") renderRoadmap();
 }
@@ -1199,6 +1208,12 @@ function populateTeamFilters() {
     const subs = subCategoriesFor(unit).filter(sub => projects.some(project => project.unit === unit && project.subUnit === sub));
     return `<option value="${unit}">${unit}</option>${subs.map(sub => `<option value="sub:${unit}::${sub}">&nbsp;&nbsp;&#8627; ${sub}</option>`).join("")}`;
   }).join("");
+  const owners = [...new Set(projects.map(project => project.owner).filter(Boolean))].sort();
+  document.querySelector("#ownerFilter").innerHTML = `<option value="all">All owners</option>${owners.map(owner => `<option value="${owner}">${owner}</option>`).join("")}`;
+  document.querySelector("#ownerFilter").value = owners.includes(ownerFilter) ? ownerFilter : "all";
+  const risks = ["High", "Medium", "Low"].filter(risk => projects.some(project => project.risk === risk));
+  document.querySelector("#riskFilter").innerHTML = `<option value="all">All risk levels</option>${risks.map(risk => `<option value="${risk}">${risk}</option>`).join("")}`;
+  document.querySelector("#riskFilter").value = risks.includes(riskFilter) ? riskFilter : "all";
   document.querySelector("#unitFilter").innerHTML = `<option value="all">All units</option>${unitOptions}`;
   const unitValues = ["all", ...units, ...units.flatMap(unit => subCategoriesFor(unit).map(sub => `sub:${unit}::${sub}`))];
   document.querySelector("#unitFilter").value = unitValues.includes(unitFilter) ? unitFilter : "all";
@@ -1582,6 +1597,8 @@ function projectsExportData() {
       status: statusFilter === "all" ? "All statuses" : statusFilter,
       team: teamFilter === "all" ? "All teams" : teamFilter,
       unit: unitFilter === "all" ? "All units" : unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter,
+      owner: ownerFilter === "all" ? "All owners" : ownerFilter,
+      risk: riskFilter === "all" ? "All risk levels" : riskFilter,
       search: query.trim() || "None"
     },
     totals: {
@@ -1620,6 +1637,8 @@ function buildProjectsExcel() {
     ["Status", data.scope.status],
     ["Team", data.scope.team],
     ["Unit", data.scope.unit],
+    ["Owner", data.scope.owner],
+    ["Risk", data.scope.risk],
     ["Search", data.scope.search],
     [],
     ["Measure", "Value"],
@@ -2994,6 +3013,8 @@ document.querySelector("#globalSearch").addEventListener("input", event => { que
 document.querySelector("#statusFilter").addEventListener("change", event => { statusFilter = event.target.value; renderProjects(); });
 document.querySelector("#teamFilter").addEventListener("change", event => { teamFilter = event.target.value; populateTeamFilters(); renderProjects(); });
 document.querySelector("#unitFilter").addEventListener("change", event => { unitFilter = event.target.value; renderProjects(); });
+document.querySelector("#ownerFilter").addEventListener("change", event => { ownerFilter = event.target.value; renderProjects(); });
+document.querySelector("#riskFilter").addEventListener("change", event => { riskFilter = event.target.value; renderProjects(); });
 document.querySelector("#roadmapTeamFilter").addEventListener("change", event => { teamFilter = event.target.value; populateTeamFilters(); renderProjects(); renderRoadmap(); });
 document.querySelector("#projectFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
 document.querySelector("#roadmapFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));

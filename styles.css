@@ -126,6 +126,8 @@ body[data-workspace="roadmap"] main { background: #f2f4f2; }
 .command-search input { min-width: 0; flex: 1; background: transparent; border: 0; outline: 0; }
 .command-search kbd { padding: 2px 6px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; }
 .topbar-actions, .heading-actions, .section-actions, .filter-group { display: flex; align-items: center; gap: 9px; }
+.filter-group { flex-wrap: wrap; }
+.section-actions { flex-wrap: wrap; justify-content: flex-end; }
 .icon-button { position: relative; display: inline-grid; width: 38px; height: 38px; place-items: center; padding: 0; background: transparent; border: 1px solid var(--line); border-radius: 6px; }
 .icon-button:hover { background: var(--canvas); }
 .icon-button svg { width: 18px; height: 18px; }
