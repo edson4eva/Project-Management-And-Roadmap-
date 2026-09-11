@@ -931,7 +931,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .unit-mix-legend-item i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
 
 /* hover a segment and its count pops up above that colour */
-.unit-mix-tip { background: none; border: 0; border-radius: 0; height: auto; position: absolute; bottom: calc(100% + 7px); left: 50%; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 0; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
+.unit-mix-tip { background: none; border: 0; border-radius: 0; height: auto; position: absolute; bottom: calc(100% + 2px); left: 50%; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 0; color: #080c0b; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none; transform: translate(-50%, 5px); transition: opacity .13s ease, transform .13s ease; }
 .unit-mix-tip-pointer { width: 0; height: 0; flex: 0 0 auto; border: 7px solid transparent; border-top: 10px solid #f2b01e; border-bottom: 0; }
 .unit-mix-tip strong { color: #000; font-family: "Manrope", sans-serif; font-size: var(--fs-300); font-weight: 800; }
 .unit-mix-seg:hover .unit-mix-tip, .unit-mix-seg:focus-visible .unit-mix-tip { opacity: 1; transform: translate(-50%, 0); }
