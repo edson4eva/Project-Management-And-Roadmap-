@@ -218,6 +218,7 @@ let unitFilter = "all";
 let ownerFilter = "all";
 let riskFilter = "all";
 let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
+let roadmapFullYear = false;
 let selectedFiscalYear = getFiscalYear(AS_OF_DATE);
 let reportTeam = "all";
 let reportStatus = "all";
@@ -1901,7 +1902,7 @@ function roadmapExportData() {
     visible,
     lanes,
     milestones,
-    quarter: `Q${roadmapQuarter + 1}`,
+    quarter: roadmapFullYear ? fiscalYearLabel(selectedFiscalYear) : `Q${roadmapQuarter + 1}`,
     fiscalLabel: fiscalYearLabel(selectedFiscalYear),
     horizon: `${formatDate(range.start.toISOString().slice(0, 10), { year: "numeric", month: "short", day: "numeric" })} to ${formatDate(range.end.toISOString().slice(0, 10), { year: "numeric", month: "short", day: "numeric" })}`,
     vision: roadmapStrategy.vision || "No guiding vision recorded.",
@@ -2120,7 +2121,8 @@ async function exportProjectsPptx() {
   finally { button.disabled = false; }
 }
 function roadmapExportName() {
-  return `roadmap-q${roadmapQuarter + 1}-${fiscalYearLabel(selectedFiscalYear).toLowerCase()}-${EXPORT_STAMP}`;
+  const fy = fiscalYearLabel(selectedFiscalYear).toLowerCase();
+  return roadmapFullYear ? `roadmap-${fy}-full-year-${EXPORT_STAMP}` : `roadmap-q${roadmapQuarter + 1}-${fy}-${EXPORT_STAMP}`;
 }
 function exportRoadmapExcel() {
   try { window.XLSX.writeFile(buildRoadmapExcel(), `${roadmapExportName()}.xlsx`, { compression: true }); showToast("Roadmap Excel workbook exported"); }
@@ -2214,10 +2216,13 @@ function exportResourcesExcel() { try { window.XLSX.writeFile(buildResourcesExce
 function exportResourcesPdf() { try { buildDirectoryPdf("resource").save(`aster-resource-directory-${AS_OF_ISO}.pdf`); showToast("Resource PDF exported"); } catch (error) { showToast(error.message); } }
 
 function timelineRange() {
-  // The roadmap horizon is always one fiscal quarter of the selected FY (Apr 1 - Mar 31).
-  const { start, end } = fiscalQuarterBounds(roadmapQuarter);
-  const label = `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} · ${monthNames[start.getMonth()]}-${monthNames[end.getMonth()]}`;
-  const milestoneLabel = `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)}`;
+  // One fiscal quarter, or the whole fiscal year (Apr 1 - Mar 31).
+  const fy = fiscalYearLabel(selectedFiscalYear);
+  const { start, end } = roadmapFullYear ? fiscalYearBounds() : fiscalQuarterBounds(roadmapQuarter);
+  const label = roadmapFullYear
+    ? `${fy} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}`
+    : `Q${roadmapQuarter + 1} ${fy} · ${monthNames[start.getMonth()]}-${monthNames[end.getMonth()]}`;
+  const milestoneLabel = roadmapFullYear ? `${fy} horizon` : `Q${roadmapQuarter + 1} ${fy}`;
 
   const periods = [];
   {
@@ -2383,11 +2388,11 @@ function renderQuarterPicker() {
   const inCurrentFiscalYear = getFiscalYear(AS_OF_DATE) === selectedFiscalYear;
   const fyLabel = fiscalYearLabel(selectedFiscalYear);
   const quarterButtons = FISCAL_QUARTERS.map((entry, index) => {
-    const active = index === roadmapQuarter;
+    const active = !roadmapFullYear && index === roadmapQuarter;
     const isNow = inCurrentFiscalYear && index === currentQuarter;
     return `<button data-quarter="${index}" class="${active ? "active" : ""}" type="button" aria-pressed="${active}" title="Q${entry.quarter} ${fyLabel} - ${entry.months}">Q${entry.quarter}${isNow ? '<i class="quarter-now" aria-label="current quarter"></i>' : ""}</button>`;
   }).join("");
-  picker.innerHTML = quarterButtons;
+  picker.innerHTML = `${quarterButtons}<button data-quarter="fy" class="quarter-fy ${roadmapFullYear ? "active" : ""}" type="button" aria-pressed="${roadmapFullYear}" title="${fyLabel} - the whole fiscal year, Apr ${selectedFiscalYear - 1} to Mar ${selectedFiscalYear}">${fyLabel}</button>`;
   document.querySelector("#roadmapFiscalNoteYear").textContent = fyLabel;
 }
 
@@ -2470,7 +2475,10 @@ function renderRoadmap() {
   document.querySelector("#roadmapPeriodLabel").textContent = range.label;
   document.querySelector("#roadmapMilestoneWindow").textContent = range.milestoneLabel;
 
-  const bands = quarterBands(range);
+  const bands = quarterBands(range, roadmapFullYear
+    ? (getFiscalYear(AS_OF_DATE) === selectedFiscalYear ? fiscalQuarterOf(AS_OF_DATE) : -1)
+    : roadmapQuarter);
+  elements.timeline.dataset.horizon = roadmapFullYear ? "fy" : "quarter";
   const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
   const laneEntries = projectUnits
     .map(unit => [unit, visible.filter(project => project.unit === unit)])
@@ -3072,9 +3080,16 @@ document.querySelector("#clearRoadmapScope").addEventListener("click", clearProj
 document.querySelector("#roadmapQuarterPicker").addEventListener("click", event => {
   const button = event.target.closest("[data-quarter]");
   if (!button) return;
-  roadmapQuarter = Number(button.dataset.quarter);
+  if (button.dataset.quarter === "fy") {
+    roadmapFullYear = true;
+  } else {
+    roadmapFullYear = false;
+    roadmapQuarter = Number(button.dataset.quarter);
+  }
   renderRoadmap();
-  showToast(`Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} selected`);
+  showToast(roadmapFullYear
+    ? `${fiscalYearLabel(selectedFiscalYear)} - full fiscal year`
+    : `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} selected`);
 });
 
 document.querySelector("#globalSearch").addEventListener("input", event => { query = event.target.value; if (activeView !== "projects") switchView("projects"); renderProjects(); });
@@ -3141,7 +3156,7 @@ document.querySelector("#projectTemplateFile").addEventListener("change", event 
 document.querySelector("#templateDropZone").addEventListener("dragover", event => { event.preventDefault(); event.currentTarget.classList.add("dragging"); });
 document.querySelector("#templateDropZone").addEventListener("dragleave", event => event.currentTarget.classList.remove("dragging"));
 document.querySelector("#templateDropZone").addEventListener("drop", event => { event.preventDefault(); event.currentTarget.classList.remove("dragging"); if (event.dataTransfer.files[0]) readProjectTemplate(event.dataTransfer.files[0]); });
-document.querySelector("#todayButton").addEventListener("click", () => { roadmapQuarter = fiscalQuarterOf(AS_OF_DATE); setFiscalYear(getFiscalYear(AS_OF_DATE)); document.querySelector(".today-line")?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); showToast(`Timeline centered on today in ${fiscalYearLabel(selectedFiscalYear)}`); });
+document.querySelector("#todayButton").addEventListener("click", () => { roadmapFullYear = false; roadmapQuarter = fiscalQuarterOf(AS_OF_DATE); setFiscalYear(getFiscalYear(AS_OF_DATE)); document.querySelector(".today-line")?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); showToast(`Timeline centered on today in ${fiscalYearLabel(selectedFiscalYear)}`); });
 elements.form.addEventListener("submit", submitProject);
 elements.teamForm.addEventListener("submit", submitTeam);
 elements.resourceForm.addEventListener("submit", submitResource);

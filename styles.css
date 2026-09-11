@@ -972,3 +972,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* frozen left pane: a shadow so it reads as pinned over the scrolling grid */
 .timeline-project-heading, .timeline-project, .timeline-lane-heading { box-shadow: 3px 0 6px -3px rgba(24, 32, 29, .18); }
+
+/* the FY view packs twelve months in, so give it room and let it pan */
+.timeline[data-horizon="fy"] { min-width: calc(var(--timeline-label-width) + 1080px); }
+.quarter-picker .quarter-fy { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
