@@ -374,7 +374,14 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .detail-workstream-card p { min-height: 30px; margin: 0 0 14px; color: var(--muted); font-size: var(--fs-200); }
 .card-link { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 14px; color: var(--green); font-size: var(--fs-100); font-weight: 700; }
 .card-link svg { width: 12px; }
-.project-detail-side { display: grid; align-content: start; gap: 12px; }
+/* The side pane is frozen below the sticky topbar (72px) so it stays in view
+   while the detail content scrolls. It scrolls internally if it outgrows the
+   window, and unfreezes once the grid collapses to a single column. */
+.project-detail-side { position: sticky; top: 88px; display: grid; align-content: start; align-self: start; gap: 12px; max-height: calc(100vh - 108px); overflow: auto; overscroll-behavior: contain; }
+.project-detail-side::-webkit-scrollbar { width: 10px; }
+.project-detail-side::-webkit-scrollbar-track { background: transparent; }
+.project-detail-side::-webkit-scrollbar-thumb { background: #c3ccc8; background-clip: padding-box; border: 3px solid transparent; border-radius: 99px; }
+.project-detail-side::-webkit-scrollbar-thumb:hover { background: #9aa7a1; background-clip: padding-box; }
 .detail-side-panel { padding: 18px; }
 .detail-side-panel .panel-heading > svg { width: 17px; color: var(--coral); }
 .page-milestones { position: relative; margin-top: 18px; }
@@ -723,6 +730,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
   .capacity-chart { grid-template-columns: repeat(2, 1fr); }
   .project-unit-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .project-detail-grid { grid-template-columns: 1fr; }
+  .project-detail-side { position: static; max-height: none; overflow: visible; }
   .project-page-stats { grid-template-columns: repeat(3, 1fr); }
   .project-page-stats > div:nth-child(3) { border-right: 0; }
   .project-page-stats > div:nth-child(-n+3) { border-bottom: 1px solid var(--line-soft); }
