@@ -207,6 +207,45 @@ function saveRoadmapStrategy() {
 }
 
 let roadmapStrategy = loadRoadmapStrategy();
+// The deck tracks Privacy Portal as one initiative broken into phases, so the
+// four separate phase-projects collapse into a single project holding them.
+// Runs over seed and stored data alike, and is idempotent.
+const LEGACY_PRIVACY_PORTAL = [
+  "Phase 1.0 PIB - Personal Information Bank",
+  "Phase 2.1 Unified Messaging Service",
+  "Phase 3.0 Discovery",
+  "Phase 3.0 Development"
+];
+
+const PRIVACY_PORTAL_PROJECT = {
+  id: 1200,
+  name: "Privacy Portal",
+  code: "PP",
+  team: "Team 3",
+  unit: "Platforms Operations",
+  subUnit: "Privacy Portal",
+  owner: "Chad Bostock",
+  objective: "The privacy portal will give Albertans access to details on how their personal information is being used.",
+  status: "In-flight",
+  progress: 39,
+  start: "2025-01-01",
+  end: "2026-09-30",
+  risk: "Medium",
+  priority: "Medium",
+  approxCost: 0,
+  scheduleVariance: 0,
+  milestone: "Target completion",
+  milestoneDate: "2026-09-30",
+  memberNames: ["Chad Bostock", "Edson Roopnarine"],
+  members: ["CB", "ER"],
+  phases: [
+    { name: "Phase 1.0 PIB - Personal Information Bank", start: "2025-01-01", end: "2025-04-30", status: "Completed" },
+    { name: "Phase 2.0 Design and Enhancements", start: "", end: "", status: "Planned" },
+    { name: "Phase 2.1 UMS", start: "2025-10-01", end: "2026-09-30", status: "In-flight" },
+    { name: "Phase 3.0 Discovery and development", start: "2025-04-01", end: "2026-03-31", status: "Pause" }
+  ]
+};
+
 let teamDirectory = loadTeams();
 let projects = loadProjects();
 let activeView = "projects";
@@ -363,12 +402,23 @@ function logOff() {
   elements.loginForm.elements.email.focus();
 }
 
+function consolidatePrivacyPortal(list) {
+  const hasLegacy = list.some(project => LEGACY_PRIVACY_PORTAL.includes(project.name));
+  if (!hasLegacy) return list;
+  const kept = list.filter(project => !LEGACY_PRIVACY_PORTAL.includes(project.name));
+  if (kept.some(project => project.name === PRIVACY_PORTAL_PROJECT.name)) return kept;
+  const at = list.findIndex(project => LEGACY_PRIVACY_PORTAL.includes(project.name));
+  const index = kept.length && at >= 0 ? Math.min(at, kept.length) : kept.length;
+  kept.splice(index, 0, { ...PRIVACY_PORTAL_PROJECT, phases: PRIVACY_PORTAL_PROJECT.phases.map(phase => ({ ...phase })) });
+  return kept;
+}
+
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return (Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit);
+    return consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit));
   } catch {
-    return seedProjects.map(normalizeProjectUnit);
+    return consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit));
   }
 }
 
