@@ -160,23 +160,12 @@
             </article>
           </div>
 
-          <section class="projects-section" aria-labelledby="allProjectsTitle">
+          <section class="projects-section" id="allProjectsSection" aria-labelledby="allProjectsTitle">
             <div class="section-heading-row">
               <div><span class="section-kicker">Workspace</span><h2 id="allProjectsTitle">All projects <span id="projectCount"></span></h2></div>
               <div class="section-actions">
                 <div class="filter-group">
-                  <select id="statusFilter" aria-label="Filter by status">
-                    <option value="all">All statuses</option>
-                    <option value="On track">On track</option>
-                    <option value="At risk">At risk</option>
-                    <option value="Off track">Off track</option>
-                    <option value="Planned">Planned</option>
-                    <option value="Completed">Completed</option>
-                    <option value="In-flight">In-flight</option>
-                    <option value="Next">Next</option>
-                    <option value="Later">Later</option>
-                    <option value="Pause">Pause</option>
-                  </select>
+                  <select id="statusFilter" aria-label="Filter by status"></select>
                   <select id="ownerFilter" aria-label="Filter by owner"><option value="all">All owners</option></select>
                   <select id="riskFilter" aria-label="Filter by risk level"><option value="all">All risk levels</option></select>
                   <select id="teamFilter" aria-label="Filter by team"><option value="all">All teams</option></select>

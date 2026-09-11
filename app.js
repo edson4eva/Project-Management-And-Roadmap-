@@ -728,7 +728,7 @@ function matchesProjectScope(project) {
   const matchesQuery = !normalized
     || [project.name, project.owner, project.team, project.unit, project.subUnit].some(value => (value || "").toLowerCase().includes(normalized));
   return matchesQuery
-    && (statusFilter === "all" || project.status === statusFilter)
+    && (statusFilter === "all" || matchesStatusFilter(project))
     && (teamFilter === "all" || project.team === teamFilter)
     && (unitFilter === "all" || matchesUnitFilter(project))
     && (ownerFilter === "all" || project.owner === ownerFilter)
@@ -737,7 +737,7 @@ function matchesProjectScope(project) {
 
 function activeProjectScope() {
   const parts = [];
-  if (statusFilter !== "all") parts.push({ label: "Status", value: statusFilter });
+  if (statusFilter !== "all") parts.push({ label: "Status", value: statusFilterLabel() });
   if (teamFilter !== "all") parts.push({ label: "Team", value: teamFilter });
   if (unitFilter !== "all") {
     parts.push({ label: "Unit", value: unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter });
@@ -829,6 +829,18 @@ function renderAttention() {
     </div>`).join("");
 }
 
+function focusProjectsOnBand(bandKey, unit) {
+  const band = bandByKey(bandKey);
+  if (!band) return;
+  statusFilter = `band:${band.key}`;
+  if (unit) unitFilter = unit;
+  populateTeamFilters();
+  if (activeView !== "projects") switchView("projects");
+  renderProjects();
+  document.querySelector("#allProjectsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  showToast(unit ? `${band.label} in ${unit}` : `Filtered to ${band.label}`);
+}
+
 function renderCapacity() {
   const fiscalProjects = getFiscalProjects();
   const units = projectUnits
@@ -847,7 +859,7 @@ function renderCapacity() {
   elements.capacityChart.innerHTML = units.length
     ? units.map(row => {
         const segments = unitMixBands.map((band, index) => row.counts[index]
-          ? `<span style="width:${row.counts[index] / row.total * 100}%;--bar-color:${band.color}" title="${band.label}: ${row.counts[index]}"></span>`
+          ? `<button class="unit-mix-seg" data-mix-band="${band.key}" data-mix-unit="${row.unit}" type="button" style="width:${row.counts[index] / row.total * 100}%;--bar-color:${band.color}" title="${band.label}: ${row.counts[index]} - click to filter ${row.unit}" aria-label="${band.label}, ${row.counts[index]} ${row.counts[index] === 1 ? "project" : "projects"} in ${row.unit}. Filter the project list."></button>`
           : "").join("");
         return `<div class="capacity-row"><span class="unit-mix-label" title="${row.unit}">${row.unit}</span><div class="capacity-track unit-mix-track">${segments}</div><strong>${row.total}</strong></div>`;
       }).join("")
@@ -856,7 +868,7 @@ function renderCapacity() {
   elements.capacityLegend.innerHTML = unitMixBands
     .map((band, index) => ({ band, total: units.reduce((sum, row) => sum + row.counts[index], 0) }))
     .filter(entry => entry.total)
-    .map(entry => `<span><i style="background:${entry.band.color}"></i>${entry.band.label} ${entry.total}</span>`)
+    .map(entry => `<button class="unit-mix-legend-item" data-mix-band="${entry.band.key}" type="button" title="Filter the project list to ${entry.band.label}" aria-label="Filter the project list to ${entry.band.label}, ${entry.total} ${entry.total === 1 ? "project" : "projects"}"><i style="background:${entry.band.color}"></i>${entry.band.label} ${entry.total}</button>`)
     .join("");
 
   const attentionLeader = units
@@ -1112,6 +1124,23 @@ function returnToProjects() {
   window.setTimeout(() => document.querySelector("#allProjectsTitle").scrollIntoView({ behavior: "smooth", block: "start" }), 50);
 }
 
+function bandByKey(key) {
+  return unitMixBands.find(band => band.key === key) || null;
+}
+
+function matchesStatusFilter(project) {
+  if (!statusFilter.startsWith("band:")) return project.status === statusFilter;
+  const band = bandByKey(statusFilter.slice(5));
+  return Boolean(band) && band.statuses.includes(project.status);
+}
+
+function statusFilterLabel() {
+  if (statusFilter === "all") return "All statuses";
+  if (!statusFilter.startsWith("band:")) return statusFilter;
+  const band = bandByKey(statusFilter.slice(5));
+  return band ? band.label : "All statuses";
+}
+
 function matchesUnitFilter(project) {
   if (!unitFilter.startsWith("sub:")) return project.unit === unitFilter;
   const [unit, sub] = unitFilter.slice(4).split("::");
@@ -1208,6 +1237,12 @@ function populateTeamFilters() {
     const subs = subCategoriesFor(unit).filter(sub => projects.some(project => project.unit === unit && project.subUnit === sub));
     return `<option value="${unit}">${unit}</option>${subs.map(sub => `<option value="sub:${unit}::${sub}">&nbsp;&nbsp;&#8627; ${sub}</option>`).join("")}`;
   }).join("");
+  const statusOptions = `<option value="all">All statuses</option>`
+    + unitMixBands.map(band => `<option value="band:${band.key}">&nbsp;&nbsp;&#8627; ${band.label}</option>`).join("")
+    + projectStatuses.map(status => `<option value="${status}">${status}</option>`).join("");
+  document.querySelector("#statusFilter").innerHTML = statusOptions;
+  const statusValues = ["all", ...unitMixBands.map(band => `band:${band.key}`), ...projectStatuses];
+  document.querySelector("#statusFilter").value = statusValues.includes(statusFilter) ? statusFilter : "all";
   const owners = [...new Set(projects.map(project => project.owner).filter(Boolean))].sort();
   document.querySelector("#ownerFilter").innerHTML = `<option value="all">All owners</option>${owners.map(owner => `<option value="${owner}">${owner}</option>`).join("")}`;
   document.querySelector("#ownerFilter").value = owners.includes(ownerFilter) ? ownerFilter : "all";
@@ -1594,7 +1629,7 @@ function projectsExportData() {
     unitMix,
     fiscalLabel: fiscalYearLabel(selectedFiscalYear),
     scope: {
-      status: statusFilter === "all" ? "All statuses" : statusFilter,
+      status: statusFilterLabel(),
       team: teamFilter === "all" ? "All teams" : teamFilter,
       unit: unitFilter === "all" ? "All units" : unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter,
       owner: ownerFilter === "all" ? "All owners" : ownerFilter,
@@ -2941,6 +2976,12 @@ function renderReportRiskDrawer(risk, matching) {
 document.addEventListener("keydown", event => {
   const selectable = event.target.closest(".project-card.open-project-page, .project-select-row");
   if (selectable && ["Enter", " "].includes(event.key)) { event.preventDefault(); renderProjectPage(selectable.dataset.id || selectable.dataset.projectPage); }
+});
+
+document.addEventListener("click", event => {
+  const band = event.target.closest("[data-mix-band]");
+  if (!band) return;
+  focusProjectsOnBand(band.dataset.mixBand, band.dataset.mixUnit);
 });
 
 document.addEventListener("pointerdown", event => {
