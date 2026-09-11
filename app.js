@@ -3,7 +3,7 @@ const AS_OF_DATE = new Date("2025-09-10T12:00:00");
 const AS_OF_ISO = "2025-09-10";
 // Bumped when the seed portfolio changes shape, so a browser holding the previous
 // seed picks up the new one instead of silently keeping stale projects.
-const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1" };
+const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1" };
 const AS_OF_LONG = "September 10, 2025";
 const AUTH_STORAGE_KEY = "platforms-branch-session";
 const DEFAULT_PASSWORD = "1234";
@@ -1090,6 +1090,30 @@ function loadCollapsedUnits() {
 
 function saveCollapsedUnits() {
   localStorage.setItem(STORAGE.collapsed, JSON.stringify([...collapsedUnits]));
+}
+
+const TIMELINE_LABEL = { min: 150, max: 560, initial: 205 };
+
+function timelineLabelWidth() {
+  const stored = Number(localStorage.getItem(STORAGE.labelWidth));
+  if (!Number.isFinite(stored) || stored <= 0) return TIMELINE_LABEL.initial;
+  return Math.min(TIMELINE_LABEL.max, Math.max(TIMELINE_LABEL.min, Math.round(stored)));
+}
+
+function applyTimelineLabelWidth(width, persist = true) {
+  const clamped = Math.min(TIMELINE_LABEL.max, Math.max(TIMELINE_LABEL.min, Math.round(width)));
+  document.documentElement.style.setProperty("--timeline-label-width", `${clamped}px`);
+  document.querySelectorAll(".timeline-resizer").forEach(handle => {
+    handle.setAttribute("aria-valuenow", String(clamped));
+    handle.title = `Drag to resize the ${handle.dataset.resizeLabel || "label"} column (${clamped}px). Double-click to reset.`;
+  });
+  if (persist) localStorage.setItem(STORAGE.labelWidth, String(clamped));
+  return clamped;
+}
+
+function timelineResizerMarkup(label) {
+  const width = timelineLabelWidth();
+  return `<button class="timeline-resizer" data-timeline-resizer data-resize-label="${label}" type="button" role="separator" aria-orientation="vertical" aria-label="Resize the ${label} column" aria-valuemin="${TIMELINE_LABEL.min}" aria-valuemax="${TIMELINE_LABEL.max}" aria-valuenow="${width}" title="Drag to resize the ${label} column (${width}px). Double-click to reset."></button>`;
 }
 
 function unitToggleMarkup(unit) {
@@ -2311,7 +2335,8 @@ function renderProjectTimeline(grouped) {
   const lanes = timelineLanesMarkup(grouped, range, gridMarkup, todayPosition, "project");
 
   elements.projectTimeline.innerHTML = `
-    <div class="timeline-header"><div class="timeline-project-heading"><span>Project</span><small>${fiscalYearLabel(selectedFiscalYear)}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(205px + (100% - 205px) * ${todayPosition / 100})">Today</span>`}</div>
+    ${timelineResizerMarkup("project")}
+    <div class="timeline-header"><div class="timeline-project-heading"><span>Project</span><small>${fiscalYearLabel(selectedFiscalYear)}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width)) * ${todayPosition / 100})">Today</span>`}</div>
     ${lanes || `<p class="timeline-empty">No projects match the current filters.</p>`}`;
 }
 
@@ -2331,7 +2356,8 @@ function renderRoadmap() {
   const laneMarkup = timelineLanesMarkup(laneEntries, range, gridMarkup, todayPosition, "initiative");
 
   elements.timeline.innerHTML = `
-    <div class="timeline-header"><div class="timeline-project-heading"><span>Initiative</span><small>${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(205px + (100% - 205px) * ${todayPosition / 100})">Today</span>`}</div>
+    ${timelineResizerMarkup("initiative")}
+    <div class="timeline-header"><div class="timeline-project-heading"><span>Initiative</span><small>${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width)) * ${todayPosition / 100})">Today</span>`}</div>
     ${laneMarkup || `<p class="timeline-empty">No initiatives fall inside this horizon.</p>`}`;
 
   const nearing = visible.filter(project => project.progress >= 75).length;
@@ -2856,6 +2882,42 @@ document.addEventListener("keydown", event => {
   if (selectable && ["Enter", " "].includes(event.key)) { event.preventDefault(); renderProjectPage(selectable.dataset.id || selectable.dataset.projectPage); }
 });
 
+document.addEventListener("pointerdown", event => {
+  const handle = event.target.closest("[data-timeline-resizer]");
+  if (!handle) return;
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = timelineLabelWidth();
+  handle.classList.add("dragging");
+  document.body.classList.add("timeline-resizing");
+  const move = moveEvent => applyTimelineLabelWidth(startWidth + (moveEvent.clientX - startX), false);
+  const finish = endEvent => {
+    applyTimelineLabelWidth(startWidth + (endEvent.clientX - startX));
+    handle.classList.remove("dragging");
+    document.body.classList.remove("timeline-resizing");
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", finish);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", finish);
+});
+
+document.addEventListener("dblclick", event => {
+  if (!event.target.closest("[data-timeline-resizer]")) return;
+  applyTimelineLabelWidth(TIMELINE_LABEL.initial);
+});
+
+document.addEventListener("keydown", event => {
+  const handle = event.target.closest?.("[data-timeline-resizer]");
+  if (!handle) return;
+  const step = event.shiftKey ? 48 : 16;
+  if (event.key === "ArrowRight") applyTimelineLabelWidth(timelineLabelWidth() + step);
+  else if (event.key === "ArrowLeft") applyTimelineLabelWidth(timelineLabelWidth() - step);
+  else if (event.key === "Home") applyTimelineLabelWidth(TIMELINE_LABEL.initial);
+  else return;
+  event.preventDefault();
+});
+
 document.addEventListener("click", event => {
   const toggle = event.target.closest("[data-toggle-unit]");
   if (!toggle) return;
@@ -2995,6 +3057,7 @@ applyAuthState(loadAuthSession());
 populateTeamFilters();
 populateFiscalYearFilters();
 populateResourceFilters();
+applyTimelineLabelWidth(timelineLabelWidth(), false);
 reconcileTeamProjectIds();
 populateProjectUnitOptions(projectUnits[0]);
 populateProjectSubUnitOptions(projectUnits[0], "");
