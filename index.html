@@ -69,6 +69,7 @@
       <div class="sidebar-footer">
         <button class="nav-item template-library-nav" id="openTemplateLibrary" type="button"><i data-lucide="file-spreadsheet"></i><span>Template</span></button>
         <button class="nav-item upload-template-nav" id="openTemplateUpload" type="button"><i data-lucide="upload"></i><span>Upload Template</span></button>
+        <button class="nav-item" id="openSettingsModal" type="button"><i data-lucide="settings"></i><span>Settings</span></button>
         <button class="nav-item" type="button"><i data-lucide="circle-help"></i><span>Help center</span></button>
         <button class="user-card" id="userMenuButton" type="button" aria-label="Open user menu" aria-expanded="false">
           <span class="avatar avatar-photo" id="userInitials">ER</span>
@@ -97,9 +98,19 @@
           <kbd>/</kbd>
         </div>
         <div class="topbar-actions">
-          <button class="icon-button" id="notificationButton" type="button" aria-label="Notifications">
-            <i data-lucide="bell"></i><span class="notification-dot"></span>
-          </button>
+          <div class="alert-host">
+            <button class="icon-button" id="notificationButton" type="button" aria-label="Alerts" aria-expanded="false" aria-controls="alertPanel">
+              <i data-lucide="bell"></i><span class="notification-dot hidden"></span>
+            </button>
+            <section class="alert-panel hidden" id="alertPanel" aria-label="Alerts">
+              <div class="alert-panel-head">
+                <div><span class="section-kicker">Needs attention</span><h2>Alerts <span class="count-badge" id="alertCount">0</span></h2></div>
+                <button class="icon-button" id="closeAlertPanel" type="button" aria-label="Close alerts"><i data-lucide="x"></i></button>
+              </div>
+              <p class="local-only-note"><i data-lucide="info"></i><span>Computed from the current project data each time this opens. There is no server behind this app, so nothing is pushed to anyone by email or message.</span></p>
+              <div id="alertList"></div>
+            </section>
+          </div>
           <button class="primary-button" id="openProjectModal" type="button" aria-label="New project">
             <i data-lucide="plus"></i><span>New project</span>
           </button>
@@ -175,8 +186,15 @@
                   <select id="teamFilter" aria-label="Filter by team"><option value="all">All teams</option></select>
                   <select id="unitFilter" aria-label="Filter by unit"><option value="all">All units</option></select>
                 <select id="goalFilter" aria-label="Filter by strategic goal"><option value="all">All goals</option></select>
+                <select id="savedViewSelect" aria-label="Saved views"><option value="">No saved views yet</option></select>
                 </div>
-                <div class="segmented-control" aria-label="Project layout">
+                <div class="view-actions">
+                <input id="saveViewName" maxlength="40" placeholder="Name this view" aria-label="Name for a saved view">
+                <button class="secondary-button" id="saveViewButton" type="button"><i data-lucide="bookmark"></i>Save view</button>
+                <button class="secondary-button" id="deleteViewButton" type="button" disabled><i data-lucide="trash-2"></i>Delete view</button>
+                <button class="secondary-button" id="shareViewButton" type="button"><i data-lucide="share-2"></i>Share</button>
+              </div>
+              <div class="segmented-control" aria-label="Project layout">
                   <button class="active" data-layout="table" type="button" aria-label="Table view"><i data-lucide="list"></i></button>
                   <button data-layout="cards" type="button" aria-label="Card view"><i data-lucide="layout-grid"></i></button>
                   <button data-layout="timeline" type="button" aria-label="Timeline view"><i data-lucide="gantt-chart"></i></button>
@@ -491,6 +509,55 @@
     </form>
   </dialog>
 
+  <dialog id="shareModal" class="project-modal share-modal">
+    <div class="modal-header">
+      <div><span class="section-kicker">Share</span><h2>Copy a link to this view</h2></div>
+      <button class="icon-button" id="closeShareModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <div class="share-body">
+      <p id="shareDescription"></p>
+      <div class="share-link-row"><input id="shareLinkInput" readonly aria-label="Shareable link"><button class="primary-button" id="copyShareLink" type="button"><i data-lucide="copy"></i>Copy</button></div>
+      <p class="local-only-note"><i data-lucide="info"></i><span>The link carries the filters, not the data. Whoever opens it sees their own copy of the portfolio through the same lens - it does not grant access to yours, and this app has no server to share through.</span></p>
+    </div>
+    <div class="modal-footer"><button class="text-button" id="doneShareModal" type="button">Done</button></div>
+  </dialog>
+
+  <dialog id="settingsModal" class="project-modal">
+    <div class="modal-header">
+      <div><span class="section-kicker">Workspace settings</span><h2>Fields and prioritization</h2></div>
+      <button class="icon-button" id="closeSettingsModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <div class="settings-body">
+      <section>
+        <h3>Prioritization model</h3>
+        <p class="alignment-empty">Choose how initiatives are scored. Numbers entered under another model are kept.</p>
+        <select id="settingsScoreModel" aria-label="Prioritization model"></select>
+      </section>
+      <section>
+        <h3>Custom fields</h3>
+        <div id="customFieldList"></div>
+        <div class="settings-add">
+          <label>Field name<input id="customFieldLabel" maxlength="40" placeholder="e.g. Ministry sponsor"></label>
+          <label>Type<select id="customFieldType"></select></label>
+          <label class="full-field hidden" id="customFieldOptions">Choices<input id="customFieldOptionsInput" maxlength="160" placeholder="Comma separated, e.g. Yes, No, Pending"></label>
+          <button class="secondary-button" id="addCustomFieldButton" type="button"><i data-lucide="plus"></i>Add field</button>
+        </div>
+      </section>
+    </div>
+    <div class="modal-footer"><button class="text-button" id="doneSettingsModal" type="button">Done</button></div>
+  </dialog>
+
+  <dialog id="specModal" class="project-modal">
+    <form method="dialog" id="specForm">
+      <div class="modal-header">
+        <div><span class="section-kicker">Specification</span><h2 id="specModalTitle">Specification</h2></div>
+        <button class="icon-button" id="closeSpecModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form-grid" id="specFields"></div>
+      <div class="modal-footer"><button class="text-button" id="cancelSpecModal" type="button">Cancel</button><button class="primary-button" id="specSaveButton" type="submit"><i data-lucide="save"></i><span>Save specification</span></button></div>
+    </form>
+  </dialog>
+
   <dialog id="releaseModal" class="project-modal">
     <form method="dialog" id="releaseForm">
       <div class="modal-header">
@@ -586,6 +653,10 @@
           <span class="alignment-label">Prioritization <small id="projectScoreModelName"></small></span>
           <div class="score-field-grid" id="projectScoreFields"></div>
           <p class="score-preview" id="projectScorePreview"></p>
+        </div>
+        <div class="full-field" id="projectCustomSection">
+          <div class="form-section-title"><span>06</span><div><strong>Custom fields</strong><small>Fields defined for this workspace under Settings</small></div></div>
+          <div class="score-field-grid" id="projectCustomFields"></div>
         </div>
       </div>
       <div class="modal-footer"><button class="text-button" id="cancelProjectModal" type="button">Cancel</button><button class="primary-button" id="saveProjectButton" type="submit"><i data-lucide="plus"></i><span>Create project</span></button></div>

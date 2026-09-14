@@ -76,6 +76,7 @@ function normalizeProjectAlignment(project) {
   project.dependsOn = Array.isArray(project.dependsOn) ? [...new Set(project.dependsOn.map(Number).filter(Number.isFinite))] : [];
   project.scoring = Object.fromEntries(SCORE_FIELD_KEYS.map(key => [key, numberOrNull(scoring[key])]));
   project.releaseId = numberOrNull(project.releaseId);
+  project.custom = project.custom && typeof project.custom === "object" ? project.custom : {};
   return project;
 }
 
@@ -364,6 +365,13 @@ let feedbackEntries = loadFeedback();
 let ideaBeingEdited = null;
 let ideaAwaitingPromotion = null;
 let releases = loadReleases();
+let projectSpecs = loadKeyedStore(STORAGE.specs);
+let projectNotes = loadKeyedStore(STORAGE.notes);
+let projectHistory = loadKeyedStore(STORAGE.history);
+let specProjectId = null;
+let customFields = loadCustomFields();
+let savedViews = loadSavedViews();
+let activeSavedViewId = null;
 let releaseBeingEdited = null;
 let draggedIdeaId = null;
 let draggedProjectId = null;
@@ -1685,7 +1693,9 @@ function moveProjectToStatus(projectId, status) {
   const project = projects.find(item => item.id === Number(projectId));
   if (!project || !projectStatuses.includes(status) || project.status === status) return false;
   const previous = project.status;
+  const before = { ...project };
   project.status = status;
+  recordProjectChange(before, project, "dragged on the board");
   saveProjects();
   renderAll();
   showToast(`${project.name}: ${previous} to ${status}`);
@@ -1697,6 +1707,7 @@ function moveProjectToStatus(projectId, status) {
 function applyProjectDateShift(projectId, dayDelta) {
   const project = projects.find(item => item.id === Number(projectId));
   if (!project || !dayDelta) return false;
+  const before = { ...project };
   const shift = iso => shiftIso(iso, dayDelta);
   project.start = shift(project.start);
   project.end = shift(project.end);
@@ -1705,6 +1716,7 @@ function applyProjectDateShift(projectId, dayDelta) {
     if (phase.start) phase.start = shift(phase.start);
     if (phase.end) phase.end = shift(phase.end);
   });
+  recordProjectChange(before, project, "dragged on the timeline");
   saveProjects();
   return true;
 }
@@ -1714,6 +1726,7 @@ function applyProjectDateShift(projectId, dayDelta) {
 function applyProjectEdgeResize(projectId, edge, dayDelta) {
   const project = projects.find(item => item.id === Number(projectId));
   if (!project || !dayDelta) return false;
+  const before = { ...project };
   if (edge === "start") {
     const proposed = shiftIso(project.start, dayDelta);
     project.start = proposed >= project.end ? shiftIso(project.end, -1) : proposed;
@@ -1723,6 +1736,7 @@ function applyProjectEdgeResize(projectId, edge, dayDelta) {
   }
   if (project.milestoneDate < project.start) project.milestoneDate = project.start;
   if (project.milestoneDate > project.end) project.milestoneDate = project.end;
+  recordProjectChange(before, project, `dragged the ${edge === "start" ? "start" : "target"} edge`);
   saveProjects();
   return true;
 }
@@ -1859,6 +1873,579 @@ function deleteRelease(releaseId) {
     : `${release.name} deleted`);
 }
 
+// ---------------------------------------------------------------------------
+// Initiative specs, discussion notes and change history.
+// All three are per-initiative records kept in this browser - there is no
+// server behind them, so the UI says so rather than implying collaboration.
+// The history is written from actual before-and-after field values.
+// ---------------------------------------------------------------------------
+const SPEC_SECTIONS = [
+  { key: "problem", label: "Problem", help: "Whose problem this is, and what it costs them today" },
+  { key: "requirements", label: "Requirements", help: "What has to be true for this to be done" },
+  { key: "outOfScope", label: "Out of scope", help: "What this initiative deliberately does not cover" },
+  { key: "acceptance", label: "Acceptance criteria", help: "How delivery will be judged complete" }
+];
+const HISTORY_TRACKED_FIELDS = [
+  ["name", "Name"], ["status", "Status"], ["progress", "Progress"], ["owner", "Owner"],
+  ["team", "Team"], ["unit", "Unit"], ["subUnit", "Sub-category"], ["start", "Start date"],
+  ["end", "Target date"], ["milestone", "Milestone"], ["milestoneDate", "Milestone date"],
+  ["risk", "Risk"], ["priority", "Priority"], ["approxCost", "Approx. cost"], ["releaseId", "Release"]
+];
+const HISTORY_LIMIT = 200;
+
+function loadKeyedStore(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key));
+    return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSpecs() {
+  localStorage.setItem(STORAGE.specs, JSON.stringify(projectSpecs));
+}
+
+function saveNotes() {
+  localStorage.setItem(STORAGE.notes, JSON.stringify(projectNotes));
+}
+
+function saveHistory() {
+  localStorage.setItem(STORAGE.history, JSON.stringify(projectHistory));
+}
+
+function specFor(projectId) {
+  const stored = projectSpecs[String(projectId)] || {};
+  return Object.fromEntries(SPEC_SECTIONS.map(section => [section.key, String(stored[section.key] || "").trim()]));
+}
+
+function specIsEmpty(spec) {
+  return SPEC_SECTIONS.every(section => !spec[section.key]);
+}
+
+function notesFor(projectId) {
+  const list = projectNotes[String(projectId)];
+  return Array.isArray(list) ? list : [];
+}
+
+function historyFor(projectId) {
+  const list = projectHistory[String(projectId)];
+  return Array.isArray(list) ? list : [];
+}
+
+function currentUserName() {
+  const session = loadAuthSession();
+  return session?.name || "This browser";
+}
+
+function historyValueLabel(field, value) {
+  if (field === "releaseId") {
+    const release = value ? releaseById(value) : null;
+    return release ? release.name : "none";
+  }
+  if (value === "" || value === null || value === undefined) return "none";
+  if (field === "approxCost") return formatCurrency(Number(value));
+  if (field === "progress") return `${value}%`;
+  return String(value);
+}
+
+// Called with the record as it was and as it now is; writes an entry only for
+// fields that actually changed.
+function recordProjectChange(before, after, source) {
+  if (!before) return;
+  const changes = HISTORY_TRACKED_FIELDS
+    .filter(([field]) => String(before[field] ?? "") !== String(after[field] ?? ""))
+    .map(([field, label]) => ({ field, label, from: historyValueLabel(field, before[field]), to: historyValueLabel(field, after[field]) }));
+  if (!changes.length) return;
+  const key = String(after.id);
+  const list = historyFor(after.id);
+  list.unshift({ id: Date.now() + Math.random(), at: new Date().toISOString(), by: currentUserName(), source, changes });
+  projectHistory[key] = list.slice(0, HISTORY_LIMIT);
+  saveHistory();
+}
+
+function addProjectNote(projectId, text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return false;
+  const key = String(projectId);
+  const list = notesFor(projectId);
+  list.unshift({ id: Date.now(), by: currentUserName(), at: new Date().toISOString(), text: trimmed });
+  projectNotes[key] = list;
+  saveNotes();
+  return true;
+}
+
+function deleteProjectNote(projectId, noteId) {
+  const key = String(projectId);
+  projectNotes[key] = notesFor(projectId).filter(note => note.id !== Number(noteId));
+  saveNotes();
+}
+
+function projectSpecSection(project) {
+  const spec = specFor(project.id);
+  return `<section class="project-page-section spec-section">
+    <div class="section-heading-row"><div><span class="section-kicker">Specification</span><h2>What this initiative commits to</h2></div><button class="secondary-button" data-edit-spec="${project.id}" type="button">${iconMarkup("pencil-line")}${specIsEmpty(spec) ? "Write the spec" : "Edit the spec"}</button></div>
+    ${specIsEmpty(spec)
+      ? `<p class="alignment-empty">No specification written yet. A spec records the problem, the requirements, what is out of scope and how delivery will be judged - nothing here is generated for you.</p>`
+      : `<div class="spec-grid">${SPEC_SECTIONS.map(section => `<article class="spec-block${spec[section.key] ? "" : " spec-block-empty"}">
+          <h3>${section.label}</h3>
+          ${spec[section.key] ? `<p>${spec[section.key].replace(/\n/g, "<br>")}</p>` : `<p class="alignment-empty">Not recorded.</p>`}
+        </article>`).join("")}</div>`}
+  </section>`;
+}
+
+function projectNotesSection(project) {
+  const notes = notesFor(project.id);
+  const history = historyFor(project.id);
+  return `<section class="project-page-section notes-section">
+    <div class="section-heading-row"><div><span class="section-kicker">Discussion and history</span><h2>Notes and what changed</h2></div><span class="detail-count">${notes.length} ${notes.length === 1 ? "note" : "notes"}</span></div>
+    <p class="local-only-note">${iconMarkup("hard-drive")}<span>Notes and history are stored in this browser only. Nothing is sent anywhere, and colleagues on other machines will not see them.</span></p>
+    <div class="notes-grid">
+      <div class="notes-column">
+        <div class="note-add">
+          <textarea id="projectNoteInput" rows="2" maxlength="400" placeholder="Add a note about this initiative"></textarea>
+          <button class="secondary-button" data-add-note="${project.id}" type="button">${iconMarkup("plus")}Add note</button>
+        </div>
+        ${notes.length
+          ? notes.map(note => `<article class="project-note"><div><strong>${note.by}</strong><small>${formatDateTime(note.at)}</small></div><p>${note.text.replace(/\n/g, "<br>")}</p><button class="text-button danger-text" data-delete-note="${note.id}" data-project-id="${project.id}" type="button">Remove</button></article>`).join("")
+          : `<p class="alignment-empty">No notes yet.</p>`}
+      </div>
+      <div class="notes-column">
+        <h3 class="notes-subhead">${iconMarkup("history")}Change history</h3>
+        ${history.length
+          ? `<ol class="history-list">${history.slice(0, 12).map(entry => `<li>
+              <div class="history-head"><strong>${entry.by}</strong><small>${formatDateTime(entry.at)} - ${entry.source}</small></div>
+              <ul>${entry.changes.map(change => `<li><span>${change.label}</span><b>${change.from}</b>${iconMarkup("arrow-right")}<b>${change.to}</b></li>`).join("")}</ul>
+            </li>`).join("")}</ol>`
+          : `<p class="alignment-empty">No changes recorded yet. Every edit from here on is logged with what it changed.</p>`}
+      </div>
+    </div>
+  </section>`;
+}
+
+function formatDateTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return `${date.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}, ${date.toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function openSpecModal(projectId) {
+  const project = projects.find(item => item.id === Number(projectId));
+  if (!project) return;
+  specProjectId = project.id;
+  const spec = specFor(project.id);
+  document.querySelector("#specModalTitle").textContent = `Specification - ${project.name}`;
+  document.querySelector("#specFields").innerHTML = SPEC_SECTIONS.map(section => `<label class="full-field">${section.label}<small class="field-hint">${section.help}</small><textarea data-spec-field="${section.key}" rows="3" maxlength="600">${spec[section.key]}</textarea></label>`).join("");
+  document.querySelector("#specModal").showModal();
+  refreshIcons();
+}
+
+function submitSpec(event) {
+  event.preventDefault();
+  const project = projects.find(item => item.id === specProjectId);
+  if (!project) return;
+  const next = {};
+  SPEC_SECTIONS.forEach(section => {
+    next[section.key] = document.querySelector(`[data-spec-field="${section.key}"]`).value.trim();
+  });
+  if (specIsEmpty(next)) delete projectSpecs[String(project.id)];
+  else projectSpecs[String(project.id)] = next;
+  saveSpecs();
+  document.querySelector("#specModal").close();
+  specProjectId = null;
+  renderProjectPage(project.id);
+  showToast(`Specification saved for ${project.name}`);
+}
+
+// ---------------------------------------------------------------------------
+// Custom fields, saved views and shareable links.
+// Custom fields add places to record information, not information itself: a
+// field with nothing entered reads as not recorded. A saved view stores the
+// filters, never a copy of the projects. A link encodes the same filters, so
+// whoever opens it sees the live data through that lens.
+// ---------------------------------------------------------------------------
+const CUSTOM_FIELD_TYPES = [
+  { key: "text", label: "Text" },
+  { key: "number", label: "Number" },
+  { key: "date", label: "Date" },
+  { key: "select", label: "Choice list" }
+];
+const SCOPE_KEYS = ["query", "statusFilter", "teamFilter", "unitFilter", "ownerFilter", "riskFilter", "goalFilter", "layout"];
+
+function loadCustomFields() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.fields));
+    return Array.isArray(saved) ? saved.map(normalizeCustomField).filter(field => field.label) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCustomField(field) {
+  const type = CUSTOM_FIELD_TYPES.some(entry => entry.key === field.type) ? field.type : "text";
+  return {
+    id: Number(field.id) || Date.now(),
+    label: String(field.label || "").trim().slice(0, 40),
+    type,
+    options: type === "select"
+      ? String(field.options || "").split(",").map(option => option.trim()).filter(Boolean)
+      : []
+  };
+}
+
+function saveCustomFields() {
+  localStorage.setItem(STORAGE.fields, JSON.stringify(customFields));
+}
+
+function customValue(project, fieldId) {
+  const value = project.custom?.[String(fieldId)];
+  return value === undefined || value === null ? "" : String(value);
+}
+
+function loadSavedViews() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.views));
+    return Array.isArray(saved) ? saved.filter(view => view && view.name) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSavedViews() {
+  localStorage.setItem(STORAGE.views, JSON.stringify(savedViews));
+}
+
+function currentScope() {
+  return { query, statusFilter, teamFilter, unitFilter, ownerFilter, riskFilter, goalFilter, layout: activeLayout };
+}
+
+function applyScope(scope = {}) {
+  query = typeof scope.query === "string" ? scope.query : "";
+  statusFilter = scope.statusFilter || "all";
+  teamFilter = scope.teamFilter || "all";
+  unitFilter = scope.unitFilter || "all";
+  ownerFilter = scope.ownerFilter || "all";
+  riskFilter = scope.riskFilter || "all";
+  goalFilter = scope.goalFilter || "all";
+  if (["table", "cards", "timeline", "board"].includes(scope.layout)) {
+    activeLayout = scope.layout;
+    document.querySelectorAll("[data-layout]").forEach(item => item.classList.toggle("active", item.dataset.layout === activeLayout));
+  }
+  document.querySelector("#globalSearch").value = query;
+  populateTeamFilters();
+  renderProjects();
+}
+
+function renderSavedViews() {
+  const select = document.querySelector("#savedViewSelect");
+  select.innerHTML = `<option value="">${savedViews.length ? "Saved views" : "No saved views yet"}</option>`
+    + savedViews.map(view => `<option value="${view.id}">${view.name}</option>`).join("");
+  select.value = activeSavedViewId ? String(activeSavedViewId) : "";
+  document.querySelector("#deleteViewButton").disabled = !activeSavedViewId;
+}
+
+function saveCurrentView() {
+  const name = document.querySelector("#saveViewName").value.trim();
+  if (!name) {
+    document.querySelector("#saveViewName").setCustomValidity("Give the view a name so it can be found again.");
+    document.querySelector("#saveViewName").reportValidity();
+    return;
+  }
+  document.querySelector("#saveViewName").setCustomValidity("");
+  const existing = savedViews.find(view => view.name.toLowerCase() === name.toLowerCase());
+  const record = { id: existing ? existing.id : Date.now(), name, scope: currentScope() };
+  if (existing) Object.assign(existing, record);
+  else savedViews.push(record);
+  activeSavedViewId = record.id;
+  saveSavedViews();
+  document.querySelector("#saveViewName").value = "";
+  renderSavedViews();
+  showToast(existing ? `View "${name}" updated` : `View "${name}" saved`);
+}
+
+function applySavedView(viewId) {
+  const view = savedViews.find(item => item.id === Number(viewId));
+  activeSavedViewId = view ? view.id : null;
+  if (!view) { renderSavedViews(); return; }
+  applyScope(view.scope);
+  renderSavedViews();
+  showToast(`Showing "${view.name}"`);
+}
+
+function deleteSavedView() {
+  const view = savedViews.find(item => item.id === activeSavedViewId);
+  if (!view) return;
+  savedViews = savedViews.filter(item => item.id !== view.id);
+  activeSavedViewId = null;
+  saveSavedViews();
+  renderSavedViews();
+  showToast(`View "${view.name}" deleted`);
+}
+
+// A link carries the filters, not the data. Opening it shows whatever the
+// projects say at that moment, through the same lens.
+function shareUrlForScope(scope = currentScope()) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  const params = new URLSearchParams();
+  SCOPE_KEYS.forEach(key => {
+    const value = scope[key];
+    if (value && value !== "all") params.set(key, value);
+  });
+  params.set("view", "projects");
+  url.search = params.toString();
+  return url.toString();
+}
+
+function shareUrlForProject(projectId) {
+  const url = new URL(window.location.href);
+  url.search = new URLSearchParams({ view: "project", project: String(projectId) }).toString();
+  url.hash = "";
+  return url.toString();
+}
+
+function openShareModal(link, description) {
+  document.querySelector("#shareLinkInput").value = link;
+  document.querySelector("#shareDescription").textContent = description;
+  document.querySelector("#shareModal").showModal();
+  const input = document.querySelector("#shareLinkInput");
+  input.focus();
+  input.select();
+  refreshIcons();
+}
+
+function copyShareLink() {
+  const input = document.querySelector("#shareLinkInput");
+  input.select();
+  const done = () => showToast("Link copied");
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(input.value).then(done, () => showToast("Select the link and copy it"));
+  else showToast("Select the link and copy it");
+}
+
+// Reads a shared link on startup. Unknown values are ignored rather than
+// guessed at, so a stale link still opens the app on something sensible.
+function applyLinkedScope() {
+  const params = new URLSearchParams(window.location.search);
+  if (![...params.keys()].length) return false;
+  if (params.get("view") === "project" && params.get("project")) {
+    const project = projects.find(item => item.id === Number(params.get("project")));
+    if (project) { renderProjectPage(project.id); return true; }
+  }
+  const scope = {};
+  SCOPE_KEYS.forEach(key => { if (params.has(key)) scope[key] = params.get(key); });
+  if (!Object.keys(scope).length) return false;
+  applyScope(scope);
+  switchView("projects");
+  showToast("Opened a shared view");
+  return true;
+}
+
+function renderCustomFieldSettings() {
+  const host = document.querySelector("#customFieldList");
+  host.innerHTML = customFields.length
+    ? customFields.map(field => `<div class="settings-row">
+        <div><strong>${field.label}</strong><small>${CUSTOM_FIELD_TYPES.find(type => type.key === field.type).label}${field.options.length ? ` - ${field.options.join(", ")}` : ""}</small></div>
+        <button class="text-button danger-text" data-delete-field="${field.id}" type="button">Remove</button>
+      </div>`).join("")
+    : `<p class="alignment-empty">No custom fields yet. Add one to record something this app does not already track.</p>`;
+  document.querySelector("#customFieldType").innerHTML = CUSTOM_FIELD_TYPES.map(type => `<option value="${type.key}">${type.label}</option>`).join("");
+  document.querySelector("#settingsScoreModel").innerHTML = Object.entries(SCORE_MODELS).map(([key, model]) => `<option value="${key}"${key === scoreModel ? " selected" : ""}>${model.label}</option>`).join("");
+  document.querySelector("#customFieldOptions").classList.toggle("hidden", document.querySelector("#customFieldType").value !== "select");
+}
+
+function openSettingsModal() {
+  renderCustomFieldSettings();
+  document.querySelector("#settingsModal").showModal();
+  refreshIcons();
+}
+
+function addCustomField() {
+  const label = document.querySelector("#customFieldLabel").value.trim();
+  if (!label) {
+    document.querySelector("#customFieldLabel").setCustomValidity("Name the field.");
+    document.querySelector("#customFieldLabel").reportValidity();
+    return;
+  }
+  document.querySelector("#customFieldLabel").setCustomValidity("");
+  const field = normalizeCustomField({
+    id: Date.now(),
+    label,
+    type: document.querySelector("#customFieldType").value,
+    options: document.querySelector("#customFieldOptionsInput").value
+  });
+  if (field.type === "select" && !field.options.length) {
+    document.querySelector("#customFieldOptionsInput").setCustomValidity("A choice list needs at least one option.");
+    document.querySelector("#customFieldOptionsInput").reportValidity();
+    return;
+  }
+  customFields.push(field);
+  saveCustomFields();
+  document.querySelector("#customFieldLabel").value = "";
+  document.querySelector("#customFieldOptionsInput").value = "";
+  renderCustomFieldSettings();
+  showToast(`Field "${field.label}" added`);
+}
+
+// Removing a definition also drops the values recorded against it, so no
+// orphaned data is left behind pretending to belong somewhere.
+function deleteCustomField(fieldId) {
+  const field = customFields.find(item => item.id === Number(fieldId));
+  if (!field) return;
+  let cleared = 0;
+  projects.forEach(project => {
+    if (project.custom && project.custom[String(field.id)] !== undefined) {
+      delete project.custom[String(field.id)];
+      cleared += 1;
+    }
+  });
+  customFields = customFields.filter(item => item.id !== field.id);
+  saveCustomFields();
+  if (cleared) saveProjects();
+  renderCustomFieldSettings();
+  renderAll();
+  showToast(cleared ? `Field "${field.label}" removed from ${cleared} ${cleared === 1 ? "project" : "projects"}` : `Field "${field.label}" removed`);
+}
+
+function renderCustomFieldInputs(project) {
+  const host = document.querySelector("#projectCustomFields");
+  const section = document.querySelector("#projectCustomSection");
+  section.classList.toggle("hidden", customFields.length === 0);
+  if (!customFields.length) { host.innerHTML = ""; return; }
+  host.innerHTML = customFields.map(field => {
+    const value = project ? customValue(project, field.id) : "";
+    if (field.type === "select") {
+      return `<label>${field.label}<select data-custom-field="${field.id}"><option value="">Not recorded</option>${field.options.map(option => `<option${option === value ? " selected" : ""}>${option}</option>`).join("")}</select></label>`;
+    }
+    const type = field.type === "number" ? "number" : field.type === "date" ? "date" : "text";
+    return `<label>${field.label}<input type="${type}" data-custom-field="${field.id}" value="${value.replace(/"/g, "&quot;")}" placeholder="Not recorded"></label>`;
+  }).join("");
+}
+
+function readCustomFieldInputs(existing) {
+  const values = { ...(existing?.custom || {}) };
+  customFields.forEach(field => {
+    const input = document.querySelector(`[data-custom-field="${field.id}"]`);
+    if (!input) return;
+    const value = input.value.trim();
+    if (value) values[String(field.id)] = value;
+    else delete values[String(field.id)];
+  });
+  return values;
+}
+
+function projectCustomSection(project) {
+  if (!customFields.length) return "";
+  return `<section class="project-page-section">
+    <div class="section-heading-row"><div><span class="section-kicker">Custom fields</span><h2>Recorded for this workspace</h2></div><button class="secondary-button" data-edit-project="${project.id}" type="button">${iconMarkup("pencil-line")}Edit</button></div>
+    <div class="custom-value-grid">${customFields.map(field => {
+      const value = customValue(project, field.id);
+      return `<div class="custom-value"><span>${field.label}</span><strong${value ? "" : ' class="custom-value-empty"'}>${value || "Not recorded"}</strong></div>`;
+    }).join("")}</div>
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// The alerts digest.
+// This app has no server, so nothing can be pushed to anyone. What it can do
+// honestly is compute, on demand, the things in the current data that need a
+// decision - and say plainly that that is what it is.
+// ---------------------------------------------------------------------------
+const MILESTONE_HORIZON_DAYS = 30;
+
+function portfolioAlerts() {
+  const alerts = [];
+  const conflicts = dependencyLinks().filter(link => link.conflict);
+  conflicts.forEach(link => alerts.push({
+    tone: "critical",
+    icon: "git-merge",
+    title: `${link.dependent.name} starts before ${link.predecessor.name} ends`,
+    detail: `Declared dependency, ${link.days} ${link.days === 1 ? "day" : "days"} of overlap.`,
+    projectId: link.dependent.id
+  }));
+  releases.filter(release => release.status !== "Cancelled").forEach(release => {
+    releaseRisks(release).forEach(project => alerts.push({
+      tone: "critical",
+      icon: "package",
+      title: `${project.name} cannot ship in ${release.name}`,
+      detail: `It ends ${formatDate(project.end)}, after the ${formatDate(release.date)} release date.`,
+      projectId: project.id
+    }));
+  });
+  const horizon = new Date(AS_OF_DATE.getTime() + MILESTONE_HORIZON_DAYS * DAY);
+  getFiscalProjects()
+    .filter(project => {
+      const date = new Date(`${project.milestoneDate}T12:00:00`);
+      return date >= AS_OF_DATE && date <= horizon;
+    })
+    .forEach(project => alerts.push({
+      tone: "warning",
+      icon: "flag",
+      title: `${project.milestone} due on ${project.name}`,
+      detail: `${formatDate(project.milestoneDate)} - within ${MILESTONE_HORIZON_DAYS} days of ${AS_OF_LONG}.`,
+      projectId: project.id
+    }));
+  getFiscalProjects()
+    .filter(project => statusGroups.attention.includes(project.status))
+    .forEach(project => alerts.push({
+      tone: project.status === "Off track" ? "critical" : "warning",
+      icon: "triangle-alert",
+      title: `${project.name} is ${project.status.toLowerCase()}`,
+      detail: `${project.progress}% complete, owned by ${project.owner}.`,
+      projectId: project.id
+    }));
+  const reviewing = ideas.filter(idea => idea.status === "Reviewing");
+  if (reviewing.length) alerts.push({
+    tone: "info",
+    icon: "lightbulb",
+    title: `${reviewing.length} ${reviewing.length === 1 ? "idea is" : "ideas are"} waiting on a review decision`,
+    detail: reviewing.map(idea => idea.title).join("; "),
+    view: "ideas"
+  });
+  const unlinked = getFiscalProjects().filter(project => !project.goalIds.length).length;
+  if (unlinked && (roadmapStrategy.goals || []).length) alerts.push({
+    tone: "info",
+    icon: "target",
+    title: `${unlinked} ${unlinked === 1 ? "initiative is" : "initiatives are"} not linked to a strategic goal`,
+    detail: "Link them on the initiative, or filter the list by goal to work through them.",
+    goalScope: "none"
+  });
+  return alerts;
+}
+
+function renderAlerts() {
+  const alerts = portfolioAlerts();
+  const critical = alerts.filter(alert => alert.tone === "critical").length;
+  const dot = document.querySelector("#notificationButton .notification-dot");
+  if (dot) {
+    dot.textContent = alerts.length > 99 ? "99+" : String(alerts.length);
+    dot.classList.toggle("hidden", alerts.length === 0);
+    dot.classList.toggle("critical", critical > 0);
+  }
+  document.querySelector("#notificationButton").setAttribute("aria-label", alerts.length
+    ? `Alerts, ${alerts.length} needing attention`
+    : "Alerts, nothing needing attention");
+  const host = document.querySelector("#alertList");
+  if (!host) return;
+  document.querySelector("#alertCount").textContent = alerts.length;
+  host.innerHTML = alerts.length
+    ? alerts.slice(0, 40).map(alert => `<button class="alert-item alert-${alert.tone}" type="button"${alert.projectId ? ` data-open-project="${alert.projectId}"` : ""}${alert.view ? ` data-view="${alert.view}"` : ""}${alert.goalScope ? ` data-goal-scope="${alert.goalScope}"` : ""}>
+        <span class="alert-icon">${iconMarkup(alert.icon)}</span>
+        <span><strong>${alert.title}</strong><small>${alert.detail}</small></span>
+        ${iconMarkup("chevron-right")}
+      </button>`).join("")
+    : `<p class="alignment-empty">Nothing needs attention in the current data: no dependency conflicts, no initiative missing its release date, no milestone inside ${MILESTONE_HORIZON_DAYS} days, and nothing at risk.</p>`;
+  refreshIcons();
+}
+
+function toggleAlertPanel(force) {
+  const panel = document.querySelector("#alertPanel");
+  const open = force === undefined ? panel.classList.contains("hidden") : force;
+  if (open) renderAlerts();
+  panel.classList.toggle("hidden", !open);
+  document.querySelector("#notificationButton").setAttribute("aria-expanded", String(open));
+}
+
 function renderProjectPage(projectId) {
   const project = projects.find(item => item.id === Number(projectId));
   if (!project) return;
@@ -1874,7 +2461,7 @@ function renderProjectPage(projectId) {
     <button class="project-page-back" data-return-projects type="button">${iconMarkup("arrow-left")} All projects</button>
     <header class="project-page-header">
       <div class="project-page-identity"><span class="project-icon teal">${initials(project.name)}</span><div><p class="eyebrow">${project.team} portfolio</p><h1 id="projectDetailTitle">${project.name}</h1><p>${project.objective}</p></div></div>
-      <div class="project-page-actions"><span class="status-pill status-${slug(project.status)}">${project.status}</span><button class="secondary-button" type="button">${iconMarkup("share-2")}Share</button><button class="danger-button" data-delete-project="${project.id}" type="button">${iconMarkup("trash-2")}Delete</button><button class="primary-button" data-edit-project="${project.id}" type="button">${iconMarkup("pencil")}Edit project</button></div>
+      <div class="project-page-actions"><span class="status-pill status-${slug(project.status)}">${project.status}</span><button class="secondary-button" data-share-project="${project.id}" type="button">${iconMarkup("share-2")}Share</button><button class="danger-button" data-delete-project="${project.id}" type="button">${iconMarkup("trash-2")}Delete</button><button class="primary-button" data-edit-project="${project.id}" type="button">${iconMarkup("pencil")}Edit project</button></div>
     </header>
     <div class="project-page-stats">
       <div><span>Owner</span><strong><i class="avatar">${initials(project.owner)}</i>${project.owner}</strong></div>
@@ -1898,6 +2485,9 @@ function renderProjectPage(projectId) {
             : `<div class="detail-phase-empty"><p>No phases recorded for this project yet.</p><button class="secondary-button" data-edit-phase="new" data-project-id="${project.id}" type="button">${iconMarkup("plus")}Add a phase</button></div>`}
         </section>
         ${projectAlignmentSection(project)}
+        ${projectCustomSection(project)}
+        ${projectSpecSection(project)}
+        ${projectNotesSection(project)}
       </div>
       <aside class="project-detail-side">
         <section class="panel detail-side-panel"><div class="panel-heading"><div><span class="section-kicker">Schedule</span><h2>Milestones</h2></div>${iconMarkup("flag")}</div><div class="page-milestones">${dates.map(item => `<div class="page-milestone ${item[2] ? "complete" : ""}"><i>${item[2] ? iconMarkup("check") : ""}</i><span><strong>${item[0]}</strong><small>${formatDate(item[1], { month: "short", day: "numeric", year: "numeric" })}</small></span></div>`).join("")}</div></section>
@@ -3651,6 +4241,7 @@ function renderProjectReleaseOptions(project) {
 }
 
 function renderAlignmentFields(project = null) {
+  renderCustomFieldInputs(project);
   renderProjectGoalChecks(project ? project.goalIds : []);
   renderProjectDependsOptions(project);
   renderProjectReleaseOptions(project);
@@ -3664,7 +4255,7 @@ function readAlignmentFields(existing) {
   const scoring = { ...(existing?.scoring || {}), ...readScoreFields() };
   const releaseValue = document.querySelector("#projectRelease").value;
   const releaseId = releaseValue && releaseById(releaseValue) ? Number(releaseValue) : null;
-  return { goalIds, dependsOn, scoring, releaseId };
+  return { goalIds, dependsOn, scoring, releaseId, custom: readCustomFieldInputs(existing) };
 }
 
 function openModal() {
@@ -3965,6 +4556,7 @@ function submitProject(event) {
   const memberNames = [data.owner, ...contributorNames.filter(name => name.toLowerCase() !== data.owner.toLowerCase())];
   const existing = projects.find(project => project.id === projectBeingEdited);
   const members = existing && !existing.memberNames && !contributorNames.length ? [initials(data.owner), ...existing.members.slice(1)] : memberNames.map(initials);
+  const historyBefore = existing ? { ...existing } : null;
   const alignment = readAlignmentFields(existing);
   if (existing && wouldCreateCycle(existing.id, alignment.dependsOn)) {
     const select = elements.form.elements.dependsOn;
@@ -3973,10 +4565,11 @@ function submitProject(event) {
     return;
   }
   elements.form.elements.dependsOn.setCustomValidity("");
-  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
+  recordProjectChange(historyBefore, savedProject, "edited the project form");
   teamDirectory.forEach(team => { team.projectIds = team.projectIds.filter(id => id !== savedProject.id); });
   const assignedTeam = teamDirectory.find(team => team.name === savedProject.team);
   if (assignedTeam && !assignedTeam.projectIds.includes(savedProject.id)) assignedTeam.projectIds.push(savedProject.id);
@@ -4018,6 +4611,8 @@ function renderAll() {
   renderTeams();
   renderResources();
   renderIdeas();
+  renderSavedViews();
+  renderAlerts();
   refreshIcons();
 }
 
@@ -4039,6 +4634,28 @@ document.addEventListener("click", event => {
   if (openProjectButton) renderProjectPage(openProjectButton.dataset.openProject);
   const goalScopeButton = event.target.closest("[data-goal-scope]");
   if (goalScopeButton) applyGoalScope(goalScopeButton.dataset.goalScope);
+  const shareProjectButton = event.target.closest("[data-share-project]");
+  if (shareProjectButton) {
+    const project = projects.find(item => item.id === Number(shareProjectButton.dataset.shareProject));
+    if (project) openShareModal(shareUrlForProject(project.id), `Anyone opening this link lands on ${project.name}.`);
+  }
+  const deleteFieldButton = event.target.closest("[data-delete-field]");
+  if (deleteFieldButton) deleteCustomField(deleteFieldButton.dataset.deleteField);
+  const editSpecButton = event.target.closest("[data-edit-spec]");
+  if (editSpecButton) openSpecModal(editSpecButton.dataset.editSpec);
+  const addNoteButton = event.target.closest("[data-add-note]");
+  if (addNoteButton) {
+    const input = document.querySelector("#projectNoteInput");
+    if (addProjectNote(addNoteButton.dataset.addNote, input.value)) {
+      renderProjectPage(addNoteButton.dataset.addNote);
+      showToast("Note added");
+    }
+  }
+  const deleteNoteButton = event.target.closest("[data-delete-note]");
+  if (deleteNoteButton) {
+    deleteProjectNote(deleteNoteButton.dataset.projectId, deleteNoteButton.dataset.deleteNote);
+    renderProjectPage(deleteNoteButton.dataset.projectId);
+  }
   const editReleaseButton = event.target.closest("[data-edit-release]");
   if (editReleaseButton) openReleaseModal(editReleaseButton.dataset.editRelease);
   const deleteReleaseButton = event.target.closest("[data-delete-release]");
@@ -4280,6 +4897,42 @@ document.addEventListener("pointerup", event => {
   renderAll();
 });
 
+document.querySelector("#notificationButton").addEventListener("click", event => { event.stopPropagation(); toggleAlertPanel(); });
+document.querySelector("#closeAlertPanel").addEventListener("click", () => toggleAlertPanel(false));
+document.querySelector("#alertList").addEventListener("click", () => toggleAlertPanel(false));
+document.addEventListener("click", event => {
+  const panel = document.querySelector("#alertPanel");
+  if (panel.classList.contains("hidden")) return;
+  if (!event.target.closest("#alertPanel") && !event.target.closest("#notificationButton")) toggleAlertPanel(false);
+});
+document.querySelector("#saveViewButton").addEventListener("click", saveCurrentView);
+document.querySelector("#deleteViewButton").addEventListener("click", deleteSavedView);
+document.querySelector("#savedViewSelect").addEventListener("change", event => applySavedView(event.target.value));
+document.querySelector("#shareViewButton").addEventListener("click", () => {
+  const parts = activeProjectScope();
+  openShareModal(shareUrlForScope(), parts.length
+    ? `This link reopens the projects list filtered by ${parts.map(part => `${part.label.toLowerCase()} ${part.value}`).join(", ")}.`
+    : "This link reopens the full projects list with no filters applied.");
+});
+document.querySelector("#copyShareLink").addEventListener("click", copyShareLink);
+document.querySelector("#closeShareModal").addEventListener("click", () => document.querySelector("#shareModal").close());
+document.querySelector("#doneShareModal").addEventListener("click", () => document.querySelector("#shareModal").close());
+document.querySelector("#openSettingsModal").addEventListener("click", openSettingsModal);
+document.querySelector("#closeSettingsModal").addEventListener("click", () => document.querySelector("#settingsModal").close());
+document.querySelector("#doneSettingsModal").addEventListener("click", () => document.querySelector("#settingsModal").close());
+document.querySelector("#addCustomFieldButton").addEventListener("click", addCustomField);
+document.querySelector("#customFieldType").addEventListener("change", event => {
+  document.querySelector("#customFieldOptions").classList.toggle("hidden", event.target.value !== "select");
+});
+document.querySelector("#settingsScoreModel").addEventListener("change", event => {
+  scoreModel = SCORE_MODELS[event.target.value] ? event.target.value : DEFAULT_SCORE_MODEL;
+  saveScoreModel();
+  renderAll();
+  showToast(`Prioritization model set to ${activeScoreModel().label}`);
+});
+document.querySelector("#specForm").addEventListener("submit", submitSpec);
+document.querySelector("#closeSpecModal").addEventListener("click", () => { document.querySelector("#specModal").close(); specProjectId = null; });
+document.querySelector("#cancelSpecModal").addEventListener("click", () => { document.querySelector("#specModal").close(); specProjectId = null; });
 document.querySelector("#addReleaseButton").addEventListener("click", () => openReleaseModal());
 document.querySelector("#releaseForm").addEventListener("submit", submitRelease);
 document.querySelector("#closeReleaseModal").addEventListener("click", () => { document.querySelector("#releaseModal").close(); releaseBeingEdited = null; });
@@ -4463,3 +5116,6 @@ populateProjectUnitOptions(projectUnits[0]);
 populateProjectSubUnitOptions(projectUnits[0], "");
 populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
 renderAll();
+// A shared link only ever narrows what is shown; with no link the app opens
+// exactly as before.
+applyLinkedScope();
