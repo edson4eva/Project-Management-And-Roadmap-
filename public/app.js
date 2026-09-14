@@ -247,9 +247,20 @@ const unitMixBands = [
   { key: "upcoming", label: "Upcoming", color: "var(--bar-upcoming)", statuses: statusGroups.upcoming },
   { key: "done", label: "Completed", color: "var(--bar-done)", statuses: statusGroups.done }
 ];
+// The five statuses the roadmap deck uses take the deck's own colours, read
+// out of its theme: Completed grey, In-flight green, Next amber, Later pink,
+// Pause the theme's accent4 blue. The four statuses the deck does not carry
+// keep the app's own palette.
+const DECK_STATUS_COLORS = {
+  Completed: "#B9B9B9",
+  "In-flight": "#78BF26",
+  Next: "#FFC836",
+  Later: "#EF4B8B",
+  Pause: "#5FCEEA"
+};
 const statusLegendColors = {
-  "On track": "var(--green)", "In-flight": "var(--blue)", "At risk": "var(--amber)", "Off track": "var(--red)",
-  "Pause": "var(--coral)", "Planned": "var(--blue)", "Next": "var(--amber)", "Later": "var(--muted)", "Completed": "var(--green)"
+  "On track": "var(--green)", "At risk": "var(--amber)", "Off track": "var(--red)", "Planned": "var(--blue)",
+  ...DECK_STATUS_COLORS
 };
 
 const seedProjects = [
@@ -587,6 +598,7 @@ let focusSet = null;
 let roadmapSort = "schedule";
 let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
 let roadmapFullYear = false;
+let roadmapDeckWindow = false;
 let selectedFiscalYear = getFiscalYear(AS_OF_DATE);
 let reportTeam = "all";
 let reportStatus = "all";
@@ -1262,8 +1274,12 @@ function projectOverlapsFiscalYear(project, year = selectedFiscalYear) {
   return new Date(`${project.end}T12:00:00`) >= start && new Date(`${project.start}T12:00:00`) <= end;
 }
 
+// Completed work stays in the portfolio whatever year it finished in. A
+// project that ended in a previous fiscal year is still part of the record of
+// what the branch delivered, so the year filter never removes it - it only
+// decides what the timeline's axis covers.
 function getFiscalProjects() {
-  return projects.filter(project => projectOverlapsFiscalYear(project));
+  return projects.filter(project => project.status === "Completed" || projectOverlapsFiscalYear(project));
 }
 
 function iconMarkup(name) {
@@ -3456,7 +3472,7 @@ function renderProjects() {
   elements.timelineLayout.classList.toggle("hidden", empty || activeLayout !== "timeline");
   elements.boardLayout.classList.toggle("hidden", empty || activeLayout !== "board");
   document.querySelector("#boardNote").classList.toggle("hidden", empty || activeLayout !== "board");
-  if (activeLayout === "timeline" && !empty) renderProjectTimeline(grouped);
+  if (activeLayout === "timeline" && !empty) { renderProjectTimeline(grouped); renderStatusLegend("#projectStatusLegend", filtered); }
   if (activeLayout === "board" && !empty) renderProjectBoard(filtered);
   refreshIcons();
 }
@@ -4439,14 +4455,35 @@ function exportTeamsPdf() { try { buildDirectoryPdf("team").save(`aster-team-dir
 function exportResourcesExcel() { try { window.XLSX.writeFile(buildResourcesExcel(), `aster-resource-directory-${AS_OF_ISO}.xlsx`, { compression: true }); showToast("Resource Excel workbook exported"); } catch (error) { showToast(error.message); } }
 function exportResourcesPdf() { try { buildDirectoryPdf("resource").save(`aster-resource-directory-${AS_OF_ISO}.pdf`); showToast("Resource PDF exported"); } catch (error) { showToast(error.message); } }
 
+// The deck's pages run from the quarter before the fiscal year to the quarter
+// after it - eighteen months, Jan 2025 to Jun 2026 on the September 2025 deck -
+// so work at either edge of the year is still on the page. Without it, an
+// initiative that finished in the previous Q4 is simply not drawn.
+function deckWindowBounds() {
+  const year = fiscalYearBounds();
+  const start = new Date(year.start);
+  start.setMonth(start.getMonth() - 3);
+  const end = new Date(year.end);
+  end.setDate(1);
+  end.setMonth(end.getMonth() + 3);
+  end.setDate(new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate());
+  return { start, end };
+}
+
 function timelineRange() {
-  // One fiscal quarter, or the whole fiscal year (Apr 1 - Mar 31).
+  // One fiscal quarter, the whole fiscal year (Apr 1 - Mar 31), or the deck's
+  // eighteen-month window around it.
   const fy = fiscalYearLabel(selectedFiscalYear);
-  const { start, end } = roadmapFullYear ? fiscalYearBounds() : fiscalQuarterBounds(roadmapQuarter);
-  const label = roadmapFullYear
-    ? `${fy} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}`
-    : `Q${roadmapQuarter + 1} ${fy} · ${monthNames[start.getMonth()]}-${monthNames[end.getMonth()]}`;
-  const milestoneLabel = roadmapFullYear ? `${fy} horizon` : `Q${roadmapQuarter + 1} ${fy}`;
+  const { start, end } = roadmapDeckWindow
+    ? deckWindowBounds()
+    : roadmapFullYear ? fiscalYearBounds() : fiscalQuarterBounds(roadmapQuarter);
+  const label = roadmapDeckWindow
+    ? `18 months · ${monthNames[start.getMonth()]} ${start.getFullYear()} - ${monthNames[end.getMonth()]} ${end.getFullYear()}`
+    : roadmapFullYear
+      ? `${fy} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}`
+      : `Q${roadmapQuarter + 1} ${fy} · ${monthNames[start.getMonth()]}-${monthNames[end.getMonth()]}`;
+  const milestoneLabel = roadmapDeckWindow ? "18-month window" : roadmapFullYear ? `${fy} horizon` : `Q${roadmapQuarter + 1} ${fy}`;
+  const includesEarlier = roadmapDeckWindow ? "" : " Completed work from earlier years is listed too, marked with the period it finished in.";
 
   const periods = [];
   {
@@ -4456,14 +4493,18 @@ function timelineRange() {
       pointer.setMonth(pointer.getMonth() + 1);
     }
   }
-  return { start, end, duration: end - start + DAY, periods, label, milestoneLabel };
+  return { start, end, duration: end - start + DAY, periods, label, milestoneLabel, includesEarlier };
 }
 
 function getRoadmapVisibleProjects() {
   const range = timelineRange();
-  return getFiscalProjects().filter(project => matchesProjectScope(project)
-    && new Date(`${project.end}T12:00:00`) >= range.start
-    && new Date(`${project.start}T12:00:00`) <= range.end);
+  // In the eighteen-month window the fiscal-year filter would still hide the
+  // quarters either side of it, so the window selects from every project.
+  const pool = roadmapDeckWindow ? projects : getFiscalProjects();
+  // Completed initiatives are kept even when their dates fall outside the
+  // horizon; the row says so rather than the project vanishing.
+  return pool.filter(project => matchesProjectScope(project) && (project.status === "Completed"
+    || (new Date(`${project.end}T12:00:00`) >= range.start && new Date(`${project.start}T12:00:00`) <= range.end)));
 }
 
 function timelineBarClass(status) {
@@ -4753,8 +4794,13 @@ function renderQuarterPicker() {
     const isNow = inCurrentFiscalYear && index === currentQuarter;
     return `<button data-quarter="${index}" class="${active ? "active" : ""}" type="button" aria-pressed="${active}" title="Q${entry.quarter} ${fyLabel} - ${entry.months}">Q${entry.quarter}${isNow ? '<i class="quarter-now" aria-label="current quarter"></i>' : ""}</button>`;
   }).join("");
-  picker.innerHTML = `${quarterButtons}<button data-quarter="fy" class="quarter-fy ${roadmapFullYear ? "active" : ""}" type="button" aria-pressed="${roadmapFullYear}" title="${fyLabel} - the whole fiscal year, Apr ${selectedFiscalYear - 1} to Mar ${selectedFiscalYear}">${fyLabel}</button>`;
+  const deck = deckWindowBounds();
+  picker.innerHTML = `${quarterButtons}`
+    + `<button data-quarter="fy" class="quarter-fy ${roadmapFullYear && !roadmapDeckWindow ? "active" : ""}" type="button" aria-pressed="${roadmapFullYear && !roadmapDeckWindow}" title="${fyLabel} - the whole fiscal year, Apr ${selectedFiscalYear - 1} to Mar ${selectedFiscalYear}">${fyLabel}</button>`
+    + `<button data-quarter="deck" class="quarter-fy quarter-window ${roadmapDeckWindow ? "active" : ""}" type="button" aria-pressed="${roadmapDeckWindow}" title="18 months, the window the roadmap deck's own pages use: ${monthNames[deck.start.getMonth()]} ${deck.start.getFullYear()} to ${monthNames[deck.end.getMonth()]} ${deck.end.getFullYear()}. Shows work that starts before or ends after the fiscal year.">18M</button>`;
   document.querySelector("#roadmapFiscalNoteYear").textContent = fyLabel;
+  const note = document.querySelector("#roadmapPeriodNote");
+  if (note) note.textContent = timelineRange().includesEarlier.trim();
 }
 
 function fiscalTimelineRange() {
@@ -4784,7 +4830,124 @@ function timelineRowMarkup(project, range, gridMarkup, todayPosition, iconColor)
   const milestoneMarkup = milestoneDate >= range.start && milestoneDate <= range.end
     ? `<span class="timeline-milestone" style="--position:${milestone}%" title="${project.milestone} - ${formatDate(project.milestoneDate)}"></span>`
     : "";
-  return `<div class="timeline-row"><div class="timeline-project"><span class="project-icon ${iconColor}">${project.code}</span><div><strong title="${project.name}">${project.name}</strong><small>${project.team} - ${project.owner}</small></div></div><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}">${gridMarkup}${todayPosition === null ? "" : `<span class="today-line"></span>`}<button class="${timelineBarClass(project.status)} open-project" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete" aria-label="${project.name}, ${project.status}, ${project.progress}% complete"><span class="timeline-bar-fill" style="width:${project.progress}%"></span><span class="timeline-bar-label">${project.progress}%</span></button>${milestoneMarkup}</div></div>`;
+  return `<div class="timeline-row"><div class="timeline-project"><span class="project-icon ${iconColor}">${project.code}</span><div><strong title="${project.name}">${project.name}</strong><small>${project.team} - ${project.owner}</small></div></div><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}">${gridMarkup}${todayPosition === null ? "" : `<span class="today-line"></span>`}${timelineOutsideMarkup(project, range) || `<button class="${timelineBarClass(project.status)} open-project" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete" aria-label="${project.name}, ${project.status}, ${project.progress}% complete"><span class="timeline-bar-fill" style="width:${project.progress}%"></span><span class="timeline-bar-label">${project.progress}%</span></button>${milestoneMarkup}`}</div></div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Deck-style sections on the timeline.
+//
+// The roadmap deck lays each page out as a left column of section names, each
+// spanning the rows of the projects inside it, with the project's own name
+// written inside its status-coloured bar. This reproduces that: one section per
+// sub-category (or per category where there are no sub-categories), the label
+// written once and vertically centred, and one row per project.
+//
+// Projects that sit directly under a unit with no category keep the older
+// per-project rows, so nothing is lost for the units the deck does not group.
+// ---------------------------------------------------------------------------
+
+// The deepest grouping a unit's projects actually have.
+function timelineSectionsFor(unit, unitProjects) {
+  const sections = [];
+  subGroupsFor(unit, unitProjects).forEach(group => {
+    nestedGroupsFor(unit, group.sub, group.items).forEach(nested => {
+      sections.push({
+        category: group.sub,
+        label: nested.subCategory || group.sub || "",
+        items: nested.items
+      });
+    });
+  });
+  return sections;
+}
+
+// A bar carries its own name, as the deck does. Below roughly an eighth of the
+// horizon there is no room for the text inside, so it is written alongside
+// instead of being clipped to nothing.
+const NARROW_BAR_PERCENT = 13;
+
+// Entirely before or after the axis: there is no honest position for a bar, so
+// an anchored marker states when the work happened instead of drawing a bar of
+// zero width at the edge. Used by both row kinds, so a project is never
+// silently reduced to a sliver whichever layout it is in.
+// The deck tints alternate quarters behind the bars, which is what makes a
+// long row readable at a glance. Parity is counted from the first whole
+// quarter in the range so the bands line up with the quarter ruler above.
+function timelineGridMarkup(range, columns) {
+  let quarter = -1;
+  let parity = 0;
+  const cells = range.periods.map(period => {
+    if (period.isPeriodStart || quarter === -1) {
+      quarter += 1;
+      parity = quarter % 2;
+    }
+    const classes = [period.isPeriodStart ? "period-start" : "", parity ? "quarter-alt" : ""].filter(Boolean).join(" ");
+    return `<i${classes ? ` class="${classes}"` : ""}></i>`;
+  }).join("");
+  return `<span class="timeline-grid" style="grid-template-columns:${columns}">${cells}</span>`;
+}
+
+function timelineOutsideMarkup(project, range) {
+  const projectStart = new Date(`${project.start}T12:00:00`);
+  const projectEnd = new Date(`${project.end}T12:00:00`);
+  if (projectEnd >= range.start && projectStart <= range.end) return "";
+  const before = projectEnd < range.start;
+  return `<button class="timeline-outside${before ? " outside-before" : " outside-after"} open-project" data-id="${project.id}" type="button" style="--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete. Outside the period shown." aria-label="${project.name}, ${project.status}, ${before ? "finished" : "starts"} ${formatDate(before ? project.end : project.start, { month: "short", day: "numeric", year: "numeric" })}, outside the period shown">
+    <i>${iconMarkup(before ? "chevron-left" : "chevron-right")}</i>
+    <span><b>${project.name}</b><small>${before ? `finished ${formatDate(project.end, { month: "short", year: "numeric" })}` : `starts ${formatDate(project.start, { month: "short", year: "numeric" })}`}</small></span>
+  </button>`;
+}
+
+function timelineBarMarkup(project, range, todayPosition) {
+  const projectStart = new Date(`${project.start}T12:00:00`);
+  const projectEnd = new Date(`${project.end}T12:00:00`);
+  const milestoneDate = new Date(`${project.milestoneDate}T12:00:00`);
+  const clippedStart = projectStart < range.start ? range.start : projectStart;
+  const clippedEnd = projectEnd > range.end ? new Date(range.end.getTime() + DAY) : new Date(projectEnd.getTime() + DAY);
+  const start = (clippedStart - range.start) / range.duration * 100;
+  const width = Math.max(0, (clippedEnd - clippedStart) / range.duration * 100);
+  const milestone = (milestoneDate - range.start + DAY / 2) / range.duration * 100;
+  const milestoneMarkup = milestoneDate >= range.start && milestoneDate <= range.end
+    ? `<span class="timeline-milestone" style="--position:${milestone}%" title="${project.milestone} - ${formatDate(project.milestoneDate)}"></span>`
+    : "";
+  const away = timelineOutsideMarkup(project, range);
+  if (away) return away;
+  const narrow = width < NARROW_BAR_PERCENT;
+  const continues = projectEnd > range.end;
+  const startsEarlier = projectStart < range.start;
+  const title = `${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete`;
+  const bar = `<button class="${timelineBarClass(project.status)} open-project${narrow ? " bar-narrow" : ""}${continues ? " bar-continues" : ""}${startsEarlier ? " bar-from-earlier" : ""}" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${title}" aria-label="${project.name}, ${project.status}, ${project.progress}% complete, ${formatDate(project.start)} to ${formatDate(project.end)}">
+    <span class="timeline-bar-fill" style="width:${project.progress}%"></span>
+    ${narrow ? "" : `<span class="timeline-bar-name">${project.name}</span><span class="timeline-bar-pct">${project.progress}%</span>`}
+  </button>`;
+  const outside = narrow
+    ? `<span class="timeline-bar-outside" style="--start:${start}%;--width:${width}%" aria-hidden="true">${project.name} <b>${project.progress}%</b></span>`
+    : "";
+  return `${bar}${outside}${milestoneMarkup}`;
+}
+
+function timelineSectionRow(project, range, gridMarkup, todayPosition) {
+  return `<div class="timeline-srow"><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}">${gridMarkup}${todayPosition === null ? "" : `<span class="today-line"></span>`}${timelineBarMarkup(project, range, todayPosition)}</div></div>`;
+}
+
+function timelineSectionMarkup(section, range, gridMarkup, todayPosition, compare, index = 0) {
+  const rows = section.items.slice().sort(compare)
+    .map(project => timelineSectionRow(project, range, gridMarkup, todayPosition)).join("");
+  const count = section.items.length;
+  // The dots summarise the section's own statuses, so the header carries
+  // information rather than decoration.
+  const dots = unitMixBands
+    .map(band => ({ band, total: section.items.filter(project => band.statuses.includes(project.status)).length }))
+    .filter(entry => entry.total)
+    .map(entry => `<i style="background:${entry.band.color}" title="${entry.total} ${entry.band.label.toLowerCase()}"></i>`)
+    .join("");
+  return `<div class="timeline-section${index % 2 ? " timeline-section-alt" : ""}">
+    <div class="timeline-section-label">
+      <strong title="${section.label}">${section.label}</strong>
+      <span class="timeline-section-meta"><span class="timeline-section-count">${count}</span><span class="timeline-section-dots">${dots}</span></span>
+    </div>
+    <div class="timeline-section-rows">${rows}</div>
+  </div>`;
 }
 
 function timelineLanesMarkup(entries, range, gridMarkup, todayPosition, noun, order = "schedule") {
@@ -4802,25 +4965,28 @@ function timelineLanesMarkup(entries, range, gridMarkup, todayPosition, noun, or
       }
     : (first, second) => first.start.localeCompare(second.start);
   return entries.map(([unit, unitProjects]) => {
-    const body = collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => {
-      const nestedMarkup = nestedGroupsFor(unit, group.sub, group.items).map(nested => {
-        const rows = nested.items
-          .slice()
-          .sort(compare)
-          .map(project => {
-            const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
-            barIndex += 1;
-            return markup;
-          }).join("");
-        const nestedHeading = nested.subCategory
-          ? `<div class="timeline-lane timeline-sublane timeline-subcategory-lane"><div class="timeline-lane-heading"><span>${nested.subCategory}</span><small>${nested.items.length}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>`
-          : "";
-        return nestedHeading + rows;
-      }).join("");
-      const heading = group.sub
-        ? `<div class="timeline-lane timeline-sublane"><div class="timeline-lane-heading"><span>${group.sub}</span><small>${group.items.length}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>`
+    let lastCategory = null;
+    let sectionIndex = 0;
+    const body = collapsedUnits.has(unit) ? "" : timelineSectionsFor(unit, unitProjects).map(section => {
+      // A category band appears only when its sections are named something
+      // else, so a category never repeats itself directly above its own rows.
+      const needsCategoryBand = section.category && section.label !== section.category && section.category !== lastCategory;
+      lastCategory = section.category;
+      const band = needsCategoryBand
+        ? `<div class="timeline-lane timeline-sublane"><div class="timeline-lane-heading"><span>${section.category}</span><small>${unitProjects.filter(project => project.subUnit === section.category).length}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>`
         : "";
-      return heading + nestedMarkup;
+      if (!section.label) {
+        // No grouping below the unit: keep the per-project rows, which carry
+        // the project name in the frozen column.
+        return band + section.items.slice().sort(compare).map(project => {
+          const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
+          barIndex += 1;
+          return markup;
+        }).join("");
+      }
+      barIndex += section.items.length;
+      sectionIndex += 1;
+      return band + timelineSectionMarkup(section, range, gridMarkup, todayPosition, compare, sectionIndex - 1);
     }).join("");
     const count = `${unitProjects.length} ${unitProjects.length === 1 ? noun : `${noun}s`}`;
     return `<div class="timeline-lane"><div class="timeline-lane-heading">${unitToggleMarkup(unit)}<span>${unit}</span><small>${count}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${body}`;
@@ -4835,7 +5001,7 @@ function renderProjectTimeline(grouped) {
     : null;
   const currentQuarter = getFiscalYear(AS_OF_DATE) === selectedFiscalYear ? fiscalQuarterOf(AS_OF_DATE) : -1;
   const bands = quarterBands(range, currentQuarter);
-  const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
+  const gridMarkup = timelineGridMarkup(range, columns);
   document.querySelector("#projectTimelineLabel").textContent = `${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}`;
 
   const lanes = timelineLanesMarkup(grouped, range, gridMarkup, todayPosition, "project");
@@ -4862,6 +5028,17 @@ function releaseMarkersMarkup(range) {
     .join("");
 }
 
+// The legend mirrors the deck's own chip row, so a bar's colour can be read
+// off it directly.
+function renderStatusLegend(selector = "#roadmapStatusLegend", visible = getRoadmapVisibleProjects()) {
+  const host = document.querySelector(selector);
+  if (!host) return;
+  host.innerHTML = Object.entries(DECK_STATUS_COLORS).map(([status, color]) => {
+    const count = visible.filter(project => project.status === status).length;
+    return `<button class="status-chip${count ? "" : " status-chip-empty"}" data-status-chip="${status}" type="button" style="--chip:${color}" aria-label="${count} ${status} ${count === 1 ? "initiative" : "initiatives"} - filter the project list" title="${count} ${status} in this view">${status}<b>${count}</b></button>`;
+  }).join("");
+}
+
 function renderRoadmap() {
   const range = timelineRange();
   const visible = getRoadmapVisibleProjects();
@@ -4873,8 +5050,8 @@ function renderRoadmap() {
   const bands = quarterBands(range, roadmapFullYear
     ? (getFiscalYear(AS_OF_DATE) === selectedFiscalYear ? fiscalQuarterOf(AS_OF_DATE) : -1)
     : roadmapQuarter);
-  elements.timeline.dataset.horizon = roadmapFullYear ? "fy" : "quarter";
-  const gridMarkup = `<span class="timeline-grid" style="grid-template-columns:${columns}">${range.periods.map(period => `<i${period.isPeriodStart ? ' class="period-start"' : ""}></i>`).join("")}</span>`;
+  elements.timeline.dataset.horizon = roadmapDeckWindow ? "window" : roadmapFullYear ? "fy" : "quarter";
+  const gridMarkup = timelineGridMarkup(range, columns);
   const laneEntries = projectUnits
     .map(unit => [unit, visible.filter(project => project.unit === unit)])
     .filter(([, items]) => items.length);
@@ -4900,6 +5077,7 @@ function renderRoadmap() {
   renderRoadmapDependencies();
   renderRoadmapPrioritization();
   renderReleases();
+  renderStatusLegend();
   renderRoadmapStrategy();
   renderRoadmapScopeStrip();
   renderQuarterPicker();
@@ -5496,6 +5674,14 @@ document.addEventListener("click", event => {
   if (openProjectButton) renderProjectPage(openProjectButton.dataset.openProject);
   const goalScopeButton = event.target.closest("[data-goal-scope]");
   if (goalScopeButton) applyGoalScope(goalScopeButton.dataset.goalScope);
+  const statusChip = event.target.closest("[data-status-chip]");
+  if (statusChip) {
+    statusFilter = statusChip.dataset.statusChip;
+    populateTeamFilters();
+    if (activeView !== "projects") switchView("projects");
+    renderProjects();
+    showToast(`Showing ${statusChip.dataset.statusChip} initiatives`);
+  }
   const metricButton = event.target.closest("[data-metric-focus]");
   if (metricButton) focusMetric(metricButton.dataset.metricFocus);
   const contentionButton = event.target.closest("[data-contention-focus]");
@@ -5650,16 +5836,24 @@ document.querySelector("#clearRoadmapScope").addEventListener("click", clearProj
 document.querySelector("#roadmapQuarterPicker").addEventListener("click", event => {
   const button = event.target.closest("[data-quarter]");
   if (!button) return;
-  if (button.dataset.quarter === "fy") {
+  if (button.dataset.quarter === "deck") {
+    roadmapDeckWindow = true;
+    roadmapFullYear = true;
+  } else if (button.dataset.quarter === "fy") {
+    roadmapDeckWindow = false;
     roadmapFullYear = true;
   } else {
+    roadmapDeckWindow = false;
     roadmapFullYear = false;
     roadmapQuarter = Number(button.dataset.quarter);
   }
   renderRoadmap();
-  showToast(roadmapFullYear
-    ? `${fiscalYearLabel(selectedFiscalYear)} - full fiscal year`
-    : `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} selected`);
+  const range = timelineRange();
+  showToast(roadmapDeckWindow
+    ? `18 months - ${range.label.split("· ")[1]}, the window the deck uses`
+    : roadmapFullYear
+      ? `${fiscalYearLabel(selectedFiscalYear)} - full fiscal year`
+      : `Q${roadmapQuarter + 1} ${fiscalYearLabel(selectedFiscalYear)} selected`);
 });
 
 document.querySelector("#globalSearch").addEventListener("input", event => { query = event.target.value; if (activeView !== "projects") switchView("projects"); renderProjects(); });
@@ -5723,9 +5917,10 @@ function timelineDayDelta(event) {
 document.querySelector("#roadmapScroll").addEventListener("pointerdown", event => {
   const bar = event.target.closest(".timeline-bar");
   if (!bar || event.button !== 0) return;
-  const row = bar.closest(".timeline-row");
+  // The track is what the drag is measured against. The row around it may be
+  // a per-project row or a deck-style section row, so it is not required here.
   const track = bar.closest(".timeline-track");
-  if (!row || !track) return;
+  if (!track || !bar.dataset.id) return;
   const range = timelineRange();
   const width = track.getBoundingClientRect().width;
   const days = Math.max(1, Math.round(range.duration / DAY));

@@ -230,14 +230,11 @@
                   <span class="roadmap-period-label" id="projectTimelineLabel"></span>
                 </div>
                 <div class="roadmap-legend">
-                  <span><i class="legend-dot" style="background:var(--green)"></i>In delivery</span>
-                  <span><i class="legend-dot" style="background:var(--red)"></i>Needs attention</span>
-                  <span><i class="legend-dot legend-hatch"></i>Upcoming</span>
-                  <span><i class="legend-dot" style="background:var(--muted)"></i>Completed</span>
-                  <span><i class="milestone-shape"></i>Milestone</span>
+                  <div class="status-legend" id="projectStatusLegend" role="group" aria-label="Status legend"></div>
+                  <span class="legend-milestone"><i class="milestone-shape"></i>Milestone</span>
                 </div>
               </div>
-              <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span>Full fiscal year, April 1 to March 31, grouped by unit. Bars are clipped to the year; hover one for its dates and status.</span></p>
+              <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span>Grouped by unit, then by category and sub-category. Bars are clipped to the period shown; completed work from earlier years is listed with the period it finished in. Hover a bar for its dates and status.</span></p>
               <div class="roadmap-scroll" id="projectTimelineScroll">
                 <div class="timeline" id="projectTimeline"></div>
               </div>
@@ -314,14 +311,11 @@
                 </select>
               </div>
               <div class="roadmap-legend">
-                <span><i class="legend-dot" style="background:var(--green)"></i>In delivery</span>
-                <span><i class="legend-dot" style="background:var(--red)"></i>Needs attention</span>
-                <span><i class="legend-dot legend-hatch"></i>Upcoming</span>
-                <span><i class="legend-dot" style="background:var(--muted)"></i>Completed</span>
-                <span><i class="milestone-shape"></i>Milestone</span>
+                <div class="status-legend" id="roadmapStatusLegend" role="group" aria-label="Status legend"></div>
+                <span class="legend-milestone"><i class="milestone-shape"></i>Milestone</span>
               </div>
             </div>
-            <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span><strong>Q = fiscal quarter.</strong> The fiscal year runs April 1 to March 31 - Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec, Q4 Jan-Mar - and the four quarters roll up into <strong id="roadmapFiscalNoteYear">FY27</strong>.</span></p>
+            <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span><strong>Q = fiscal quarter.</strong> The fiscal year runs April 1 to March 31 - Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec, Q4 Jan-Mar - and the four quarters roll up into <strong id="roadmapFiscalNoteYear">FY27</strong>. <span id="roadmapPeriodNote"></span></span></p>
             <div class="roadmap-scroll" id="roadmapScroll">
               <div class="timeline" id="timeline"></div>
             </div>

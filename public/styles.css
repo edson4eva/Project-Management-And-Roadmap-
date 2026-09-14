@@ -456,9 +456,9 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .timeline-bar { display: flex; align-items: center; }
 .timeline-bar-fill { position: absolute; z-index: 0; top: 0; bottom: 0; left: 0; background: rgba(255, 255, 255, .26); }
 .timeline-bar-label { position: relative; z-index: 1; font-size: var(--fs-100); font-weight: 700; }
-.timeline-bar.upcoming { color: #1d3a4f; background: repeating-linear-gradient(135deg, #e2edf5, #e2edf5 5px, #cfe0ec 5px, #cfe0ec 10px); border: 1px solid #a9c6da; }
+.timeline-bar.upcoming { color: #4a3505; background: var(--bar-color); border: 0; }
 .timeline-bar.upcoming .timeline-bar-fill { background: rgba(54, 112, 155, .16); }
-.timeline-bar.done { color: #445; background: repeating-linear-gradient(135deg, #e7ebe8, #e7ebe8 5px, #dbe1dd 5px, #dbe1dd 10px); border: 1px solid var(--line); }
+.timeline-bar.done { color: #2f3633; background: var(--bar-color); border: 0; }
 .timeline-bar.attention { box-shadow: 0 0 0 1px rgba(196, 78, 78, .35); }
 
 /* unit swimlanes */
@@ -1375,3 +1375,117 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .timeline-subcategory-lane .timeline-lane-heading { padding-left: 48px; }
 .timeline-subcategory-lane .timeline-lane-heading span { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
 .fiscal-span { display: inline-block; padding: 2px 7px; color: var(--ink-soft); background: var(--canvas); border-radius: 99px; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; }
+
+/* --- Deck-style timeline sections ---------------------------------------
+   Laid out like the roadmap deck's own pages: the section name written once in
+   the frozen column, spanning the rows of the projects inside it, and each
+   project's name inside its own status-coloured bar. Columns use the same
+   template as the lane and row grids so the month ruler stays aligned. */
+.timeline-section { display: grid; grid-template-columns: var(--timeline-label-width) 1fr; padding-right: var(--timeline-gutter); background: #fff; border-bottom: 1px solid var(--line); }
+.timeline-section-alt { background: #fafcfa; }
+.timeline-section:last-child { border-bottom: 0; }
+.timeline-section-label { position: sticky; left: 0; z-index: 3; display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 13px 14px 13px 17px; background: #eef1ef; border-right: 1px solid var(--line); box-shadow: 3px 0 6px -3px rgba(24, 32, 29, .18); }
+.timeline-section-alt .timeline-section-label { background: #e8ece9; }
+/* A quiet accent rail marks where one section ends and the next begins, which
+   a flat block of grey cannot do once several stack up. */
+.timeline-section-label::before { content: ""; position: absolute; top: 12px; bottom: 12px; left: 0; width: 3px; background: var(--green); border-radius: 0 2px 2px 0; opacity: .55; }
+.timeline-section-label strong { color: var(--ink); font-size: var(--fs-300); font-weight: 700; line-height: 1.34; }
+.timeline-section-meta { display: flex; align-items: center; gap: 8px; }
+.timeline-section-count { display: inline-grid; place-items: center; min-width: 21px; height: 18px; padding: 0 6px; color: var(--ink-soft); background: #fff; border: 1px solid var(--line); border-radius: 99px; font-size: 10px; font-weight: 800; }
+.timeline-section-dots { display: inline-flex; gap: 3px; }
+.timeline-section-dots i { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 -1px 1px rgba(0, 0, 0, .18); }
+.timeline-section-rows { display: flex; flex-direction: column; }
+.timeline-srow { min-height: 36px; transition: background .12s ease; }
+.timeline-srow + .timeline-srow { border-top: 1px solid rgba(24, 32, 29, .055); }
+.timeline-srow:hover { background: rgba(23, 107, 83, .045); }
+.timeline-srow .timeline-track { position: relative; min-height: 36px; height: 100%; overflow: hidden; }
+
+/* The bar is centred in its own row and carries the project name, as in the
+   deck. Positioned with top rather than a transform, because the drag handler
+   owns transform on .timeline-bar. */
+.timeline-srow .timeline-bar { top: calc(50% - 11px); height: 22px; line-height: 22px; padding: 0 10px; gap: 0; font-size: var(--fs-100); letter-spacing: .01em; transition: filter .12s ease, box-shadow .12s ease; }
+/* A single top highlight reads as a raised bar without turning the row into a
+   gradient study; the deck's bars are flat, this keeps them close to that. */
+.timeline-srow .timeline-bar::after { content: ""; position: absolute; top: 0; right: 0; left: 0; height: 40%; background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0)); pointer-events: none; }
+.timeline-srow .timeline-bar:hover { filter: saturate(1.12) brightness(1.04); box-shadow: 0 2px 7px rgba(24, 32, 29, .22); }
+.timeline-srow .timeline-bar.upcoming::after, .timeline-srow .timeline-bar.done::after { display: none; }
+.timeline-srow .timeline-milestone { top: calc(50% - 5px); }
+.timeline-bar-name { position: relative; z-index: 1; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-bar-pct { position: relative; z-index: 1; flex: 0 0 auto; margin-left: 9px; font-size: 10px; font-weight: 700; opacity: .82; }
+.timeline-bar-outside { position: absolute; z-index: 2; top: calc(50% - 8px); left: calc(var(--start) + var(--width)); max-width: 34%; overflow: hidden; margin-left: 7px; color: var(--ink-soft); font-size: var(--fs-100); font-weight: 600; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.timeline-bar-outside b { color: var(--ink); font-weight: 700; }
+
+/* The deck draws every bar with a pointed right end. */
+.timeline-srow .timeline-bar { border-radius: 2px; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); }
+.timeline-srow .timeline-bar.bar-narrow { clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 50%, calc(100% - 4px) 100%, 0 100%); }
+
+@media (max-width: 720px) {
+  .timeline-section-label { padding: 9px 11px; }
+  .timeline-section-label strong { font-size: var(--fs-200); }
+}
+
+/* The 18-month window button sits beside the fiscal-year one in the picker. */
+.quarter-picker .quarter-window { font-size: var(--fs-100); letter-spacing: .03em; }
+
+/* --- Status legend, in the deck's own chips ------------------------------
+   Flat colour, pointed right edge and dark text, matching the deck's legend
+   row so a bar's colour can be read straight off it. */
+.status-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.status-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 15px 3px 11px; color: #22282b; font: inherit; font-size: var(--fs-100); font-weight: 700; background: var(--chip); border: 0; border-radius: 2px; cursor: pointer; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); transition: filter .12s ease; }
+.status-chip:hover { filter: saturate(1.12) brightness(1.05); }
+.status-chip:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.status-chip b { padding: 0 5px; color: #22282b; background: rgba(255, 255, 255, .58); border-radius: 99px; font-size: 10px; font-weight: 800; }
+.status-chip-empty { opacity: .42; }
+.legend-milestone { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: var(--fs-200); font-weight: 600; }
+
+/* Text on the lighter chips needs the dark ink to stay legible; on the deeper
+   pink and green, white reads better. */
+.timeline-bar[style*="#FFC836"], .timeline-bar[style*="#B9B9B9"], .timeline-bar[style*="#5FCEEA"] { color: #22282b; }
+.timeline-bar[style*="#FFC836"] .timeline-bar-pct, .timeline-bar[style*="#B9B9B9"] .timeline-bar-pct, .timeline-bar[style*="#5FCEEA"] .timeline-bar-pct { opacity: .7; }
+
+/* Status pills across the app take the same five colours. */
+.status-completed { color: #3d4442; background: #eceeed; }
+.status-in-flight { color: #3f6a11; background: #eef7e2; }
+.status-next { color: #6b4a04; background: #fff4d9; }
+.status-later { color: #a01b55; background: #fdeaf2; }
+.status-pause { color: #0f5f77; background: #e4f6fc; }
+
+/* --- Work that sits outside the period shown ----------------------------
+   A completed initiative from an earlier year has no honest position on this
+   axis, so it is anchored to the edge it lies beyond and states when it
+   happened, rather than being drawn as a zero-width bar or dropped. */
+.timeline-outside { position: absolute; top: calc(50% - 12px); display: inline-flex; align-items: center; gap: 7px; max-width: 46%; height: 24px; padding: 0 10px 0 6px; color: var(--ink-soft); font: inherit; font-size: var(--fs-100); text-align: left; background: #fff; border: 1px dashed var(--line); border-left: 3px solid var(--bar-color); border-radius: var(--radius-xs); cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+.timeline-outside.outside-before { left: 6px; }
+.timeline-outside.outside-after { right: 6px; }
+.timeline-outside:hover { background: var(--canvas); border-color: var(--bar-color); }
+.timeline-outside i { display: inline-flex; flex: 0 0 auto; color: var(--muted); }
+.timeline-outside i svg { width: 13px; }
+.timeline-outside span { display: flex; min-width: 0; flex-direction: column; }
+.timeline-outside b { overflow: hidden; color: var(--ink); font-size: var(--fs-100); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-outside small { color: var(--muted); font-size: 10px; font-weight: 600; white-space: nowrap; }
+#roadmapPeriodNote { color: var(--ink-soft); }
+
+/* --- Nested layout: readability of the plot area ------------------------
+   Alternate quarters carry a faint tint, as the deck's own pages do. It is
+   what lets the eye follow a row across eighteen months without a ruler. */
+.timeline-grid i.quarter-alt { background: rgba(0, 80, 114, .035); }
+.timeline-section-alt .timeline-grid i.quarter-alt { background: rgba(0, 80, 114, .05); }
+.timeline-grid i.period-start { box-shadow: inset 1px 0 0 rgba(24, 32, 29, .16); }
+
+/* In a tall section - the nine OAG projects, for instance - the label follows
+   the scroll so it is still readable at the bottom of its own block. */
+.timeline-section-label { align-items: flex-start; }
+.timeline-section-label > * { position: sticky; top: 13px; }
+.timeline-section-label strong { width: 100%; }
+
+/* A row reads as one line across both columns on hover. */
+.timeline-section:hover > .timeline-section-label { background: #e4e9e5; }
+.timeline-section-alt:hover > .timeline-section-label { background: #e1e6e2; }
+
+/* The milestone diamond needs to stay legible over a tinted band. */
+.timeline-srow .timeline-milestone { box-shadow: 0 0 0 1px var(--coral), 0 1px 3px rgba(24, 32, 29, .3); }
+
+/* Today's line runs the height of a section rather than stopping at each row,
+   so it reads as one continuous marker down the page. */
+.timeline-section-rows { position: relative; }
+.timeline-srow .today-line { opacity: .85; }
