@@ -1,0 +1,17 @@
+{
+  "name": "platforms-branch-roadmap",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Platforms Branch Project & Roadmap App - shared portfolio and roadmap workspace",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pg": "8.13.1"
+  }
+}

@@ -22,13 +22,16 @@
         <div class="login-mobile-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><strong>Platforms Branch</strong></div>
         <p class="eyebrow">Secure workspace</p>
         <h1 id="loginTitle">Welcome back</h1>
-        <p class="login-intro">Sign in to access portfolio operations.</p>
+        <p class="login-intro" id="loginIntro">Sign in to access portfolio operations.</p>
+              <label class="hidden" id="loginNameField">Your name<div class="login-input"><i data-lucide="user-round"></i><input name="name" maxlength="60" autocomplete="name" placeholder="First and last name"></div></label>
         <label>Email address<div class="login-input"><i data-lucide="mail"></i><input name="email" type="email" autocomplete="username" required placeholder="name@organization.com"></div></label>
-        <label>Password<div class="login-input"><i data-lucide="lock-keyhole"></i><input name="password" type="password" minlength="4" maxlength="4" inputmode="numeric" autocomplete="current-password" required placeholder="Enter your password"><button id="togglePassword" type="button" aria-label="Show password"><i data-lucide="eye"></i></button></div></label>
+        <label>Password<div class="login-input"><i data-lucide="lock-keyhole"></i><input name="password" type="password" minlength="4" maxlength="72" autocomplete="current-password" required placeholder="Enter your password"><button id="togglePassword" type="button" aria-label="Show password"><i data-lucide="eye"></i></button></div></label>
         <div class="login-options"><label><input name="remember" type="checkbox"><span>Keep me signed in</span></label><button id="forgotPassword" type="button">Forgot password?</button></div>
         <p class="login-error" id="loginError" role="alert" aria-live="polite"></p>
         <button class="login-submit" type="submit"><span>Sign in</span><i data-lucide="arrow-right"></i></button>
-        <p class="login-security"><i data-lucide="shield-check"></i>Protected workspace access</p>
+        <p class="login-mode" id="loginModeLine"></p>
+              <button class="login-switch hidden" id="loginModeSwitch" type="button">Create an account instead</button>
+              <p class="login-security"><i data-lucide="shield-check"></i>Protected workspace access</p>
       </form>
     </div>
   </section>
@@ -97,6 +100,11 @@
           <input id="globalSearch" type="search" placeholder="Search projects, owners, teams..." aria-label="Search projects">
           <kbd>/</kbd>
         </div>
+        <button class="workspace-badge" id="workspaceBadge" type="button" aria-label="Workspace status">
+          <span class="workspace-dot" id="workspaceDot"></span>
+          <span><small id="workspaceMode">This browser only</small><strong id="workspaceName">Local portfolio</strong></span>
+          <span class="workspace-viewers" id="workspaceViewers"></span>
+        </button>
         <div class="topbar-actions">
           <div class="alert-host">
             <button class="icon-button" id="notificationButton" type="button" aria-label="Alerts" aria-expanded="false" aria-controls="alertPanel">
@@ -109,6 +117,10 @@
               </div>
               <p class="local-only-note"><i data-lucide="info"></i><span>Computed from the current project data each time this opens. There is no server behind this app, so nothing is pushed to anyone by email or message.</span></p>
               <div id="alertList"></div>
+              <div class="alert-activity hidden" id="alertActivity">
+                <h3>Workspace activity</h3>
+                <div id="alertActivityList"></div>
+              </div>
             </section>
           </div>
           <button class="primary-button" id="openProjectModal" type="button" aria-label="New project">
@@ -532,6 +544,10 @@
         <h3>Prioritization model</h3>
         <p class="alignment-empty">Choose how initiatives are scored. Numbers entered under another model are kept.</p>
         <select id="settingsScoreModel" aria-label="Prioritization model"></select>
+      </section>
+      <section id="workspaceSection">
+        <h3>Workspace</h3>
+        <div id="workspacePanel"></div>
       </section>
       <section>
         <h3>Custom fields</h3>

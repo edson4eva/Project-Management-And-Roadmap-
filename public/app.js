@@ -66,6 +66,7 @@ function loadScoreModel() {
 
 function saveScoreModel() {
   localStorage.setItem(STORAGE.scoreModel, scoreModel);
+  pushRecords("settings", (() => ({ scoreModel }))(), "the prioritization model");
 }
 
 // Adds the alignment fields to a stored project without inventing values:
@@ -356,6 +357,7 @@ function loadRoadmapStrategy() {
 
 function saveRoadmapStrategy() {
   localStorage.setItem(STORAGE.roadmap, JSON.stringify(roadmapStrategy));
+  pushRecords("strategy", (() => roadmapStrategy)(), "the roadmap strategy");
 }
 
 let roadmapStrategy = loadRoadmapStrategy();
@@ -544,11 +546,111 @@ function applyAuthState(session) {
   document.querySelector("#userInitials").textContent = initials(displayName);
 }
 
+let loginMode = "signin";
+
+async function signInWithServer(email, password, name) {
+  const error = document.querySelector("#loginError");
+  error.textContent = "";
+  if (!email || !password) {
+    error.textContent = "Enter your email address and password.";
+    return;
+  }
+  const submit = document.querySelector(".login-submit");
+  submit.disabled = true;
+  try {
+    if (loginMode === "register") {
+      const created = await api("POST", "/api/auth/register", { email, password, name: (name || "").trim() });
+      workspace.user = created.user;
+      workspace.list = [{ ...created.workspace, member_count: 1 }];
+      applyAuthState({ email: created.user.email, name: created.user.name });
+      elements.loginForm.reset();
+      // A new account's workspace starts empty, so this browser's portfolio
+      // becomes its starting point rather than being lost.
+      await openWorkspace(created.workspace.id, { adoptLocal: true });
+      showToast(`Account created. "${created.workspace.name}" is now shared from the server.`);
+    } else {
+      const session = await api("POST", "/api/auth/login", { email, password });
+      workspace.user = session.user;
+      applyAuthState({ email: session.user.email, name: session.user.name });
+      elements.loginForm.reset();
+      const me = await api("GET", "/api/me");
+      workspace.list = me.workspaces || [];
+      workspace.unread = me.unread || 0;
+      const chosen = workspace.list[0];
+      if (chosen) await openWorkspace(chosen.id, { adoptLocal: true });
+      else renderWorkspaceBar();
+      await refreshNotifications();
+      showToast(`Signed in as ${session.user.name}`);
+    }
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function setLoginMode(mode) {
+  loginMode = mode;
+  const registering = mode === "register";
+  document.querySelector("#loginTitle").textContent = registering ? "Create your account" : "Welcome back";
+  document.querySelector("#loginIntro").textContent = registering
+    ? "Your account is what lets colleagues share this portfolio with you."
+    : "Sign in to access portfolio operations.";
+  document.querySelector("#loginNameField").classList.toggle("hidden", !registering);
+  document.querySelector("#loginModeSwitch").textContent = registering ? "I already have an account" : "Create an account instead";
+  document.querySelector(".login-submit span").textContent = registering ? "Create account" : "Sign in";
+  document.querySelector("#loginError").textContent = "";
+  const password = elements.loginForm.elements.password;
+  password.placeholder = registering ? "At least 8 characters" : "Enter your password";
+  password.setAttribute("autocomplete", registering ? "new-password" : "current-password");
+}
+
+// The login screen says which kind of sign-in it is offering, so nobody types a
+// real password into a browser-only copy or a four-digit one into a server.
+function renderLoginMode() {
+  const line = document.querySelector("#loginModeLine");
+  const switcher = document.querySelector("#loginModeSwitch");
+  const password = elements.loginForm.elements.password;
+  if (!line) return;
+  if (workspace.available) {
+    line.innerHTML = `${iconMarkup("cloud")}<span>Accounts are held on the server, so a workspace can be shared with colleagues.</span>`;
+    switcher.classList.remove("hidden");
+    password.minLength = 8;
+    password.removeAttribute("inputmode");
+  } else {
+    line.innerHTML = `${iconMarkup("hard-drive")}<span>This copy has no server, so everything stays in this browser. Any email address works with the four-digit workspace password.</span>`;
+    switcher.classList.add("hidden");
+    password.minLength = 4;
+    password.setAttribute("inputmode", "numeric");
+  }
+  refreshIcons();
+}
+
+async function signOutEverywhere() {
+  if (workspace.available && workspace.user) {
+    try { await api("POST", "/api/auth/logout"); } catch { /* the local sign-out still happens */ }
+  }
+  leaveWorkspace();
+  workspace.user = null;
+  workspace.list = [];
+  workspace.notifications = [];
+  workspace.unread = 0;
+  logOff();
+  renderLoginMode();
+  renderWorkspaceBar();
+}
+
 function signIn(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(elements.loginForm));
   const email = data.email.trim().toLowerCase();
   const error = document.querySelector("#loginError");
+  // With a server present, the account is real and the server decides. The
+  // local four-digit password only ever applies to a browser-only copy.
+  if (workspace.available) {
+    signInWithServer(email, data.password, data.name);
+    return;
+  }
   if (!email || data.password !== DEFAULT_PASSWORD) {
     error.textContent = "The email address or password is incorrect.";
     return;
@@ -683,6 +785,7 @@ function populateProjectTeamOptions(selected) {
 
 function saveProjects() {
   localStorage.setItem(STORAGE.projects, JSON.stringify(projects));
+  pushRecords("projects", (() => projects)(), "the portfolio");
 }
 
 function loadTeams() {
@@ -706,6 +809,7 @@ function normalizeTeamRoles(team) {
 
 function saveTeams() {
   localStorage.setItem(STORAGE.teams, JSON.stringify(teamDirectory));
+  pushRecords("teams", (() => teamDirectory)(), "the team directory");
 }
 
 function initials(name) {
@@ -1433,6 +1537,7 @@ function normalizeIdea(idea) {
 
 function saveIdeas() {
   localStorage.setItem(STORAGE.ideas, JSON.stringify(ideas));
+  pushRecords("ideas", (() => ideas)(), "the idea board");
 }
 
 function loadFeedback() {
@@ -1458,6 +1563,7 @@ function normalizeFeedback(entry) {
 
 function saveFeedback() {
   localStorage.setItem(STORAGE.feedback, JSON.stringify(feedbackEntries));
+  pushRecords("feedback", (() => feedbackEntries)(), "customer feedback");
 }
 
 function feedbackForIdea(ideaId) {
@@ -1776,6 +1882,7 @@ function normalizeRelease(release) {
 
 function saveReleases() {
   localStorage.setItem(STORAGE.releases, JSON.stringify(releases));
+  pushRecords("releases", (() => releases)(), "the release plan");
 }
 
 function releaseById(releaseId) {
@@ -1904,14 +2011,17 @@ function loadKeyedStore(key) {
 
 function saveSpecs() {
   localStorage.setItem(STORAGE.specs, JSON.stringify(projectSpecs));
+  pushRecords("specs", (() => projectSpecs)(), "a specification");
 }
 
 function saveNotes() {
   localStorage.setItem(STORAGE.notes, JSON.stringify(projectNotes));
+  pushRecords("notes", (() => projectNotes)(), "the notes");
 }
 
 function saveHistory() {
   localStorage.setItem(STORAGE.history, JSON.stringify(projectHistory));
+  pushRecords("history", (() => projectHistory)(), "the change history");
 }
 
 function specFor(projectId) {
@@ -2095,6 +2205,7 @@ function normalizeCustomField(field) {
 
 function saveCustomFields() {
   localStorage.setItem(STORAGE.fields, JSON.stringify(customFields));
+  pushRecords("fields", (() => customFields)(), "the custom fields");
 }
 
 function customValue(project, fieldId) {
@@ -2113,6 +2224,7 @@ function loadSavedViews() {
 
 function saveSavedViews() {
   localStorage.setItem(STORAGE.views, JSON.stringify(savedViews));
+  pushRecords("views", (() => savedViews)(), "the saved views");
 }
 
 function currentScope() {
@@ -2416,12 +2528,14 @@ function portfolioAlerts() {
 function renderAlerts() {
   const alerts = portfolioAlerts();
   const critical = alerts.filter(alert => alert.tone === "critical").length;
+  const total = alerts.length + (workspaceActive() ? workspace.unread : 0);
   const dot = document.querySelector("#notificationButton .notification-dot");
   if (dot) {
-    dot.textContent = alerts.length > 99 ? "99+" : String(alerts.length);
-    dot.classList.toggle("hidden", alerts.length === 0);
+    dot.textContent = total > 99 ? "99+" : String(total);
+    dot.classList.toggle("hidden", total === 0);
     dot.classList.toggle("critical", critical > 0);
   }
+  renderWorkspaceActivity();
   document.querySelector("#notificationButton").setAttribute("aria-label", alerts.length
     ? `Alerts, ${alerts.length} needing attention`
     : "Alerts, nothing needing attention");
@@ -2441,9 +2555,504 @@ function renderAlerts() {
 function toggleAlertPanel(force) {
   const panel = document.querySelector("#alertPanel");
   const open = force === undefined ? panel.classList.contains("hidden") : force;
-  if (open) renderAlerts();
+  if (open) {
+    renderAlerts();
+    if (workspaceActive() && workspace.unread) {
+      workspace.unread = 0;
+      api("POST", "/api/notifications/read").then(() => refreshNotifications()).catch(() => renderAlerts());
+    }
+  }
   panel.classList.toggle("hidden", !open);
   document.querySelector("#notificationButton").setAttribute("aria-expanded", String(open));
+}
+
+// ===========================================================================
+// Shared workspaces.
+//
+// The app works on its own with nothing but this browser's storage - that is
+// still the fallback, and nothing below changes it. When a server is reachable
+// and someone is signed in, the same records are kept in a workspace instead,
+// so colleagues see each other's work and are told when it changes.
+//
+// Two rules this code holds to:
+// - The server decides what a person may do. A refusal is shown and the local
+//   copy is put back, rather than the client pretending a save worked.
+// - Nothing is merged silently. A collision hands back the newer record and
+//   says who changed it.
+// ===========================================================================
+const WORKSPACE_KINDS = {
+  projects: { label: "the portfolio", apply: data => { projects = consolidatePrivacyPortal(data.map(normalizeProjectUnit)).map(normalizeProjectAlignment); } },
+  teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
+  strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
+  ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
+  feedback: { label: "customer feedback", apply: data => { feedbackEntries = data.map(normalizeFeedback); } },
+  releases: { label: "the release plan", apply: data => { releases = data.map(normalizeRelease); } },
+  specs: { label: "specifications", apply: data => { projectSpecs = data; } },
+  notes: { label: "notes", apply: data => { projectNotes = data; } },
+  history: { label: "change history", apply: data => { projectHistory = data; } },
+  fields: { label: "custom fields", apply: data => { customFields = data.map(normalizeCustomField); } },
+  views: { label: "saved views", apply: data => { savedViews = data; } },
+  settings: { label: "workspace settings", apply: data => { scoreModel = SCORE_MODELS[data?.scoreModel] ? data.scoreModel : DEFAULT_SCORE_MODEL; } }
+};
+const WORKSPACE_LOCAL_KEY = "pb-active-workspace-v1";
+
+const workspace = {
+  available: false,   // a server answered
+  user: null,
+  id: null,
+  name: "",
+  role: null,
+  shareToken: null,
+  shareLabel: "",
+  versions: {},
+  members: [],
+  shareLinks: [],
+  activity: [],
+  viewers: [],
+  unread: 0,
+  clientToken: `c${Math.random().toString(36).slice(2, 10)}`,
+  stream: null,
+  applying: false,
+  pushing: new Set(),
+  lastError: ""
+};
+
+function workspaceActive() {
+  return Boolean(workspace.available && workspace.id);
+}
+
+function canEditWorkspace() {
+  return !workspaceActive() || workspace.role === "owner" || workspace.role === "editor";
+}
+
+function isWorkspaceOwner() {
+  return workspaceActive() && workspace.role === "owner" && !workspace.shareToken;
+}
+
+async function api(method, path, body) {
+  if (typeof fetch !== "function") throw new Error("offline");
+  const response = await fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...(workspace.shareToken ? { "X-Share-Token": workspace.shareToken } : {}),
+      "X-Client-Token": workspace.clientToken
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const text = await response.text();
+  let payload = null;
+  try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+  if (!response.ok) {
+    const error = new Error(payload?.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
+}
+
+// A record is sent only when a workspace is open and the person may write. A
+// viewer's attempt is refused out loud and the server's copy is restored, so
+// what is on screen is never a change that did not happen.
+async function pushRecords(kind, data, label) {
+  if (!workspaceActive() || workspace.applying || !WORKSPACE_KINDS[kind]) return;
+  if (!canEditWorkspace()) {
+    showToast("Your access to this workspace is view only, so that change was not saved");
+    await refreshWorkspaceSnapshot({ quiet: true });
+    renderAll();
+    return;
+  }
+  const payload = JSON.parse(JSON.stringify(data));
+  workspace.pushing.add(kind);
+  renderWorkspaceBar();
+  try {
+    const result = await api("PUT", `/api/workspaces/${workspace.id}/records/${kind}`, {
+      data: payload,
+      baseVersion: workspace.versions[kind] ?? 0,
+      summary: `${workspace.user?.name || workspace.shareLabel || "A shared link"} updated ${label}`
+    });
+    workspace.versions[kind] = result.version;
+    workspace.lastError = "";
+  } catch (error) {
+    if (error.status === 409) {
+      // Someone else was faster. Take their record rather than overwrite it.
+      applyWorkspaceRecord(kind, error.payload?.current, error.payload?.version);
+      renderAll();
+      showToast(`Someone else changed ${WORKSPACE_KINDS[kind].label} first - their version is now shown`);
+    } else if (error.status === 403) {
+      await refreshWorkspaceSnapshot({ quiet: true });
+      renderAll();
+      showToast(error.message);
+    } else {
+      workspace.lastError = error.message;
+      showToast(`Saved in this browser, but not to the workspace: ${error.message}`);
+    }
+  } finally {
+    workspace.pushing.delete(kind);
+    renderWorkspaceBar();
+  }
+}
+
+function applyWorkspaceRecord(kind, data, version) {
+  const entry = WORKSPACE_KINDS[kind];
+  if (!entry || data === null || data === undefined) return false;
+  workspace.applying = true;
+  try {
+    entry.apply(data);
+    if (version !== undefined) workspace.versions[kind] = version;
+    // Keep this browser's copy in step, so a later offline session starts from
+    // what the workspace last said.
+    const storageKey = {
+      projects: STORAGE.projects, teams: STORAGE.teams, strategy: STORAGE.roadmap, ideas: STORAGE.ideas,
+      feedback: STORAGE.feedback, releases: STORAGE.releases, specs: STORAGE.specs, notes: STORAGE.notes,
+      history: STORAGE.history, fields: STORAGE.fields, views: STORAGE.views
+    }[kind];
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(data));
+    if (kind === "settings") localStorage.setItem(STORAGE.scoreModel, scoreModel);
+    return true;
+  } catch (error) {
+    console.error(`Could not apply ${kind} from the workspace:`, error.message);
+    return false;
+  } finally {
+    workspace.applying = false;
+  }
+}
+
+async function refreshWorkspaceSnapshot({ quiet = false, adoptLocal = false } = {}) {
+  if (!workspace.id) return null;
+  const snapshot = await api("GET", `/api/workspaces/${workspace.id}/snapshot`);
+  workspace.role = snapshot.role;
+  workspace.name = snapshot.workspace?.name || workspace.name;
+  workspace.members = snapshot.members || [];
+  workspace.shareLinks = snapshot.shareLinks || [];
+  workspace.activity = snapshot.events || [];
+  workspace.viewers = snapshot.viewers || [];
+  if (snapshot.user) workspace.user = snapshot.user;
+  if (snapshot.viaShare) workspace.shareLabel = snapshot.viaShare.label || "Shared link";
+  const kinds = Object.keys(snapshot.records || {});
+  kinds.forEach(kind => applyWorkspaceRecord(kind, snapshot.records[kind], snapshot.versions[kind]));
+  // An empty workspace that its owner has just opened takes this browser's
+  // portfolio as its starting point - the alternative would be to show them an
+  // empty app and lose their work.
+  if (!kinds.length && adoptLocal && canEditWorkspace()) {
+    await publishLocalToWorkspace();
+  }
+  if (!quiet) renderWorkspaceBar();
+  return snapshot;
+}
+
+async function publishLocalToWorkspace() {
+  const payloads = {
+    projects, teams: teamDirectory, strategy: roadmapStrategy, ideas, feedback: feedbackEntries,
+    releases, specs: projectSpecs, notes: projectNotes, history: projectHistory,
+    fields: customFields, views: savedViews, settings: { scoreModel }
+  };
+  for (const [kind, data] of Object.entries(payloads)) {
+    try {
+      const result = await api("PUT", `/api/workspaces/${workspace.id}/records/${kind}`, {
+        data: JSON.parse(JSON.stringify(data)),
+        summary: `${workspace.user?.name || "Someone"} published this browser's ${WORKSPACE_KINDS[kind].label} to the workspace`
+      });
+      workspace.versions[kind] = result.version;
+    } catch (error) {
+      showToast(`Could not publish ${WORKSPACE_KINDS[kind].label}: ${error.message}`);
+      return false;
+    }
+  }
+  showToast("This browser's portfolio is now the workspace's starting point");
+  return true;
+}
+
+function openWorkspaceStream() {
+  if (workspace.stream) { workspace.stream.close(); workspace.stream = null; }
+  if (!workspace.id || typeof EventSource !== "function") return;
+  const url = `/api/workspaces/${workspace.id}/stream?client=${encodeURIComponent(workspace.clientToken)}`
+    + (workspace.shareToken ? `&share=${encodeURIComponent(workspace.shareToken)}` : "");
+  const stream = new EventSource(url);
+  workspace.stream = stream;
+  stream.onmessage = message => {
+    let frame = null;
+    try { frame = JSON.parse(message.data); } catch { return; }
+    if (frame.type === "records") {
+      if (applyWorkspaceRecord(frame.kind, frame.data, frame.version)) {
+        renderAll();
+        showToast(`${frame.actor} updated ${WORKSPACE_KINDS[frame.kind]?.label || frame.kind}`);
+      }
+    } else if (frame.type === "event") {
+      workspace.activity = [{ id: frame.id, actor_name: frame.actor, kind: frame.kind, summary: frame.summary, created_at: frame.at }, ...workspace.activity].slice(0, 40);
+      workspace.unread += 1;
+      renderAlerts();
+      renderWorkspaceBar();
+    } else if (frame.type === "presence") {
+      workspace.viewers = frame.viewers || [];
+      renderWorkspaceBar();
+    }
+  };
+  stream.onerror = () => { renderWorkspaceBar(); };
+}
+
+async function openWorkspace(id, { adoptLocal = false } = {}) {
+  workspace.id = Number(id);
+  try {
+    await refreshWorkspaceSnapshot({ adoptLocal });
+    localStorage.setItem(WORKSPACE_LOCAL_KEY, String(workspace.id));
+    openWorkspaceStream();
+    renderAll();
+    return true;
+  } catch (error) {
+    workspace.id = null;
+    workspace.role = null;
+    showToast(`Could not open that workspace: ${error.message}`);
+    renderWorkspaceBar();
+    return false;
+  }
+}
+
+function leaveWorkspace() {
+  if (workspace.stream) { workspace.stream.close(); workspace.stream = null; }
+  workspace.id = null;
+  workspace.role = null;
+  workspace.shareToken = null;
+  workspace.shareLabel = "";
+  workspace.versions = {};
+  workspace.members = [];
+  workspace.shareLinks = [];
+  workspace.activity = [];
+  workspace.viewers = [];
+  localStorage.removeItem(WORKSPACE_LOCAL_KEY);
+  renderWorkspaceBar();
+}
+
+// Startup. A share link in the address bar wins, then a signed-in session,
+// then this browser on its own.
+async function bootstrapWorkspace() {
+  if (typeof fetch !== "function") { renderWorkspaceBar(); return; }
+  const params = new URLSearchParams(window.location.search);
+  const shareToken = params.get("share");
+  try {
+    const me = await api("GET", "/api/me");
+    workspace.available = true;
+    workspace.user = me.user;
+    workspace.unread = me.unread || 0;
+    workspace.list = me.workspaces || [];
+  } catch {
+    workspace.available = false;
+    renderWorkspaceBar();
+    return;
+  }
+  if (shareToken) {
+    try {
+      const resolved = await api("GET", `/api/share/${shareToken}`);
+      workspace.shareToken = shareToken;
+      workspace.shareLabel = resolved.link.label || "Shared link";
+      workspace.name = resolved.link.workspace_name;
+      applyAuthState({ email: workspace.user?.email || "shared-link", name: workspace.user?.name || workspace.shareLabel });
+      await openWorkspace(resolved.link.workspace_id);
+      if (resolved.link.scope && Object.keys(resolved.link.scope).length) applyScope(resolved.link.scope);
+      showToast(`Opened "${workspace.name}" through a shared link (${workspace.role})`);
+      return;
+    } catch (error) {
+      showToast(`That shared link could not be opened: ${error.message}`);
+    }
+  }
+  if (workspace.user) {
+    applyAuthState({ email: workspace.user.email, name: workspace.user.name });
+    const remembered = Number(localStorage.getItem(WORKSPACE_LOCAL_KEY));
+    const chosen = (workspace.list || []).find(entry => entry.id === remembered) || (workspace.list || [])[0];
+    if (chosen) await openWorkspace(chosen.id, { adoptLocal: true });
+    await refreshNotifications();
+  }
+  renderWorkspaceBar();
+}
+
+async function refreshNotifications() {
+  if (!workspace.available || !workspace.user) return;
+  try {
+    const result = await api("GET", "/api/notifications");
+    workspace.notifications = result.notifications || [];
+    workspace.unread = workspace.notifications.filter(entry => !entry.read_at).length;
+    renderAlerts();
+    renderWorkspaceBar();
+  } catch { /* the digest still works from local data */ }
+}
+
+// --- Workspace UI ---------------------------------------------------------
+
+function renderWorkspaceBar() {
+  const dot = document.querySelector("#workspaceDot");
+  const mode = document.querySelector("#workspaceMode");
+  const name = document.querySelector("#workspaceName");
+  const viewers = document.querySelector("#workspaceViewers");
+  if (!dot) return;
+  const pushing = workspace.pushing.size > 0;
+  if (!workspace.available) {
+    dot.className = "workspace-dot local";
+    mode.textContent = "This browser only";
+    name.textContent = "Local portfolio";
+    viewers.textContent = "";
+  } else if (!workspaceActive()) {
+    dot.className = "workspace-dot local";
+    mode.textContent = workspace.user ? "No workspace open" : "Not signed in";
+    name.textContent = workspace.user ? "This browser only" : "Local portfolio";
+    viewers.textContent = "";
+  } else {
+    dot.className = `workspace-dot ${workspace.lastError ? "error" : pushing ? "saving" : "live"}`;
+    mode.textContent = workspace.shareToken
+      ? `Shared link - ${workspace.role}`
+      : `${workspace.role}${pushing ? " - saving" : workspace.lastError ? " - not saved" : " - live"}`;
+    name.textContent = workspace.name || "Workspace";
+    const others = workspace.viewers.filter(viewer => viewer.id !== workspace.user?.id);
+    viewers.textContent = others.length ? `+${others.length}` : "";
+    viewers.title = others.length ? `Also viewing: ${others.map(viewer => viewer.name).join(", ")}` : "";
+  }
+  renderWorkspacePanel();
+}
+
+function renderWorkspacePanel() {
+  const host = document.querySelector("#workspacePanel");
+  if (!host) return;
+  if (!workspace.available) {
+    host.innerHTML = `<p class="alignment-empty">This copy is running without a server, so the portfolio is stored in this browser only. Deploy the app with a database to share it with colleagues.</p>`;
+    return;
+  }
+  if (!workspace.user && !workspace.shareToken) {
+    host.innerHTML = `<p class="alignment-empty">Sign in to open a shared workspace. Until then everything is stored in this browser only.</p>`;
+    return;
+  }
+  if (workspace.shareToken) {
+    host.innerHTML = `<div class="settings-row"><div><strong>${workspace.name}</strong><small>Opened through a shared link with ${workspace.role} access${workspace.shareLabel ? ` - ${workspace.shareLabel}` : ""}</small></div></div>
+      <p class="alignment-empty">A shared link cannot see who else has access, and cannot change it.</p>`;
+    return;
+  }
+  const list = (workspace.list || []).map(entry => `<option value="${entry.id}"${entry.id === workspace.id ? " selected" : ""}>${entry.name} (${entry.role})</option>`).join("");
+  host.innerHTML = `
+    <div class="workspace-switch">
+      <label>Open workspace<select id="workspaceSelect">${list || `<option value="">None yet</option>`}</select></label>
+      <div class="workspace-new">
+        <label>New workspace<input id="newWorkspaceName" maxlength="60" placeholder="e.g. Platforms Branch"></label>
+        <button class="secondary-button" id="createWorkspaceButton" type="button">${iconMarkup("plus")}Create</button>
+      </div>
+    </div>
+    ${workspaceActive() ? `
+      <div class="settings-row"><div><strong>${workspace.name}</strong><small>You are ${workspace.role}. ${workspace.viewers.length} ${workspace.viewers.length === 1 ? "person" : "people"} connected.</small></div><button class="text-button" id="leaveWorkspaceButton" type="button">Work locally instead</button></div>
+      <h4 class="workspace-subhead">${iconMarkup("users")}Who has access</h4>
+      <div>${workspace.members.length
+        ? workspace.members.map(member => `<div class="settings-row">
+            <div><strong>${member.name}</strong><small>${member.email} - ${member.role}</small></div>
+            ${isWorkspaceOwner() && member.id !== workspace.user?.id ? `<button class="text-button danger-text" data-remove-member="${member.id}" type="button">Remove</button>` : ""}
+          </div>`).join("")
+        : `<p class="alignment-empty">Only you.</p>`}</div>
+      ${isWorkspaceOwner() ? `
+        <div class="settings-add">
+          <label>Give access to<input id="memberEmail" type="email" maxlength="120" placeholder="name@gov.ab.ca"></label>
+          <label>Role<select id="memberRole"><option value="viewer">Viewer - read only</option><option value="editor">Editor - can change records</option><option value="owner">Owner - can also manage access</option></select></label>
+          <button class="secondary-button" id="addMemberButton" type="button">${iconMarkup("user-round-plus")}Add</button>
+        </div>
+        <h4 class="workspace-subhead">${iconMarkup("link")}Share links</h4>
+        <div>${workspace.shareLinks.length
+          ? workspace.shareLinks.map(link => `<div class="settings-row">
+              <div><strong>${link.label || "Untitled link"}</strong><small>${link.role} - ${link.expires_at ? `expires ${formatDate(String(link.expires_at).slice(0, 10))}` : "no expiry"}${Object.keys(link.scope || {}).length ? " - filtered" : ""}</small></div>
+              <span class="release-card-actions"><button class="text-button" data-copy-link="${link.token}" type="button">Copy</button><button class="text-button danger-text" data-revoke-link="${link.token}" type="button">Revoke</button></span>
+            </div>`).join("")
+          : `<p class="alignment-empty">No share links yet. A link gives access without an account, and can be revoked at any time.</p>`}</div>
+        <div class="settings-add">
+          <label>Link label<input id="shareLinkLabel" maxlength="60" placeholder="e.g. Executive review"></label>
+          <label>Access<select id="shareLinkRole"><option value="viewer">Viewer - read only</option><option value="editor">Editor - can change records</option></select></label>
+          <label>Expires in days<input id="shareLinkDays" type="number" min="0" max="365" placeholder="blank for no expiry"></label>
+          <label><input id="shareLinkScoped" type="checkbox"> Limit it to the filters showing now</label>
+          <button class="secondary-button" id="createShareLinkButton" type="button">${iconMarkup("link")}Create link</button>
+        </div>` : `<p class="alignment-empty">Only an owner can change who has access or create share links.</p>`}
+    ` : ""}`;
+  refreshIcons();
+}
+
+function workspaceLinkUrl(shareToken) {
+  const url = new URL(window.location.href);
+  url.search = new URLSearchParams({ share: shareToken }).toString();
+  url.hash = "";
+  return url.toString();
+}
+
+async function addWorkspaceMember() {
+  const email = document.querySelector("#memberEmail").value.trim();
+  const role = document.querySelector("#memberRole").value;
+  if (!email) return;
+  try {
+    const result = await api("POST", `/api/workspaces/${workspace.id}/members`, { email, role });
+    document.querySelector("#memberEmail").value = "";
+    await refreshWorkspaceSnapshot();
+    showToast(`${result.member.name} now has ${role} access`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function removeWorkspaceMember(userId) {
+  try {
+    await api("DELETE", `/api/workspaces/${workspace.id}/members/${userId}`);
+    await refreshWorkspaceSnapshot();
+    showToast("Access removed");
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function createWorkspaceShareLink() {
+  const scoped = document.querySelector("#shareLinkScoped").checked;
+  const days = document.querySelector("#shareLinkDays").value;
+  try {
+    const result = await api("POST", `/api/workspaces/${workspace.id}/share`, {
+      role: document.querySelector("#shareLinkRole").value,
+      label: document.querySelector("#shareLinkLabel").value.trim(),
+      expiresInDays: days === "" ? null : Number(days),
+      scope: scoped ? currentScope() : {}
+    });
+    await refreshWorkspaceSnapshot();
+    openShareModal(workspaceLinkUrl(result.link.token),
+      `Anyone with this link gets ${result.link.role} access to ${workspace.name}${scoped ? ", limited to the filters showing now" : ""}. Revoke it under Settings when it is no longer needed.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function revokeWorkspaceShareLink(shareToken) {
+  try {
+    await api("DELETE", `/api/workspaces/${workspace.id}/share/${shareToken}`);
+    await refreshWorkspaceSnapshot();
+    showToast("Link revoked - it no longer opens this workspace");
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function createWorkspace() {
+  const name = document.querySelector("#newWorkspaceName").value.trim();
+  if (!name) return;
+  try {
+    const result = await api("POST", "/api/workspaces", { name });
+    workspace.list = [...(workspace.list || []), { ...result.workspace, member_count: 1 }];
+    document.querySelector("#newWorkspaceName").value = "";
+    await openWorkspace(result.workspace.id, { adoptLocal: true });
+    showToast(`Workspace "${name}" created`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+function renderWorkspaceActivity() {
+  const host = document.querySelector("#alertActivity");
+  const list = document.querySelector("#alertActivityList");
+  if (!host || !list) return;
+  const entries = workspace.notifications?.length
+    ? workspace.notifications.map(entry => ({ who: entry.actor_name, what: entry.summary, when: entry.created_at, unread: !entry.read_at }))
+    : workspace.activity.map(entry => ({ who: entry.actor_name, what: entry.summary, when: entry.created_at, unread: false }));
+  host.classList.toggle("hidden", !workspaceActive() || !entries.length);
+  list.innerHTML = entries.slice(0, 12).map(entry => `<div class="activity-item${entry.unread ? " activity-unread" : ""}">
+      <span class="avatar">${initials(entry.who || "?")}</span>
+      <span><strong>${entry.what}</strong><small>${formatDateTime(entry.when)}</small></span>
+    </div>`).join("");
 }
 
 function renderProjectPage(projectId) {
@@ -4897,6 +5506,23 @@ document.addEventListener("pointerup", event => {
   renderAll();
 });
 
+document.querySelector("#loginModeSwitch").addEventListener("click", () => setLoginMode(loginMode === "register" ? "signin" : "register"));
+document.querySelector("#workspaceBadge").addEventListener("click", openSettingsModal);
+document.querySelector("#workspacePanel").addEventListener("click", event => {
+  if (event.target.closest("#addMemberButton")) addWorkspaceMember();
+  if (event.target.closest("#createShareLinkButton")) createWorkspaceShareLink();
+  if (event.target.closest("#createWorkspaceButton")) createWorkspace();
+  if (event.target.closest("#leaveWorkspaceButton")) { leaveWorkspace(); showToast("Working from this browser only"); }
+  const remove = event.target.closest("[data-remove-member]");
+  if (remove) removeWorkspaceMember(remove.dataset.removeMember);
+  const copy = event.target.closest("[data-copy-link]");
+  if (copy) openShareModal(workspaceLinkUrl(copy.dataset.copyLink), `This link gives access to ${workspace.name}. Revoke it under Settings when it is no longer needed.`);
+  const revoke = event.target.closest("[data-revoke-link]");
+  if (revoke) revokeWorkspaceShareLink(revoke.dataset.revokeLink);
+});
+document.querySelector("#workspacePanel").addEventListener("change", event => {
+  if (event.target.id === "workspaceSelect" && event.target.value) openWorkspace(event.target.value);
+});
 document.querySelector("#notificationButton").addEventListener("click", event => { event.stopPropagation(); toggleAlertPanel(); });
 document.querySelector("#closeAlertPanel").addEventListener("click", () => toggleAlertPanel(false));
 document.querySelector("#alertList").addEventListener("click", () => toggleAlertPanel(false));
@@ -5084,7 +5710,7 @@ document.querySelector("#userMenuButton").addEventListener("click", event => {
   menu.hidden = !menu.hidden;
   event.currentTarget.setAttribute("aria-expanded", String(!menu.hidden));
 });
-document.querySelector("#logoutButton").addEventListener("click", logOff);
+document.querySelector("#logoutButton").addEventListener("click", signOutEverywhere);
 document.addEventListener("click", event => {
   const menu = document.querySelector("#userMenu");
   if (!menu.hidden && !event.target.closest("#userMenu, #userMenuButton")) {
@@ -5119,3 +5745,7 @@ renderAll();
 // A shared link only ever narrows what is shown; with no link the app opens
 // exactly as before.
 applyLinkedScope();
+renderLoginMode();
+// Then find out whether there is a server to share through. Until this answers,
+// the app is fully usable on this browser's own data.
+bootstrapWorkspace().then(renderLoginMode).catch(() => renderLoginMode());
