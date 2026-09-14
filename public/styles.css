@@ -1333,3 +1333,28 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .activity-unread::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; margin-top: 8px; background: var(--green); border-radius: 50%; }
 
 @media (max-width: 900px) { .workspace-badge strong { max-width: 110px; } }
+
+/* --- Roadmap cards that trace back to their own records ------------------
+   A figure on the roadmap is only trustworthy if the records behind it can be
+   opened, so the metric, goal, contention and release cards are buttons. */
+.success-metric, .goal-card { position: relative; width: 100%; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+/* Only the three other sides: the left border carries the metric's state
+   colour from .metric-met / -watch / -behind / -neutral, and a border or
+   border-left shorthand here would out-specify those and flatten them. */
+.success-metric { border-top: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.success-metric:hover, .goal-card:hover { box-shadow: 0 2px 10px rgba(24, 32, 29, .09); }
+.success-metric:hover { background: #fff; border-top-color: var(--green); border-right-color: var(--green); border-bottom-color: var(--green); }
+.goal-card { border: 1px solid transparent; }
+.goal-card:hover { background: #fff; border-color: var(--green); }
+.success-metric:focus-visible, .goal-card:focus-visible, .release-count:focus-visible, .dependency-meta:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.card-source { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; color: var(--ink-soft); font-size: var(--fs-100); font-weight: 700; }
+.card-source svg { width: 12px; }
+.success-metric:hover .card-source, .goal-card:hover .goal-initiative-link { color: var(--green); }
+.goal-initiative-link { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 6px; color: #145c45; font-size: var(--fs-200); font-weight: 600; background: var(--green-soft); border-radius: 99px; }
+.dependency-flow .dependency-node { min-width: 0; }
+.dependency-flow .dependency-meta { display: inline-flex; align-items: center; gap: 5px; grid-column: 1 / -1; padding: 3px 7px; color: var(--ink-soft); font: inherit; font-size: var(--fs-100); font-weight: 700; background: #fff; border: 1px solid var(--line); border-radius: 99px; cursor: pointer; justify-self: start; }
+.dependency-flow .dependency-meta:hover { color: var(--green); border-color: var(--green); }
+.dependency-flow .dependency-meta svg { width: 12px; }
+.release-count { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; margin: -3px -7px; color: var(--ink-soft); font: inherit; font-size: var(--fs-100); font-weight: 600; background: none; border: 1px solid transparent; border-radius: 99px; cursor: pointer; text-align: left; }
+.release-count:hover { color: var(--green); background: #fff; border-color: var(--green); }
+.release-count svg { width: 12px; flex: 0 0 auto; }

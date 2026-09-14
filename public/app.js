@@ -428,6 +428,7 @@ let unitFilter = "all";
 let ownerFilter = "all";
 let riskFilter = "all";
 let goalFilter = "all";
+let focusSet = null;
 let roadmapSort = "schedule";
 let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
 let roadmapFullYear = false;
@@ -1117,7 +1118,8 @@ function matchesProjectScope(project) {
     && (unitFilter === "all" || matchesUnitFilter(project))
     && (ownerFilter === "all" || project.owner === ownerFilter)
     && (riskFilter === "all" || project.risk === riskFilter)
-    && (goalFilter === "all" || matchesGoalFilter(project));
+    && (goalFilter === "all" || matchesGoalFilter(project))
+    && (!focusSet || focusSet.ids.has(project.id));
 }
 
 function activeProjectScope() {
@@ -1130,6 +1132,7 @@ function activeProjectScope() {
   if (ownerFilter !== "all") parts.push({ label: "Owner", value: ownerFilter });
   if (riskFilter !== "all") parts.push({ label: "Risk", value: riskFilter });
   if (goalFilter !== "all") parts.push({ label: "Goal", value: goalFilterLabel() });
+  if (focusSet) parts.push({ label: "Behind", value: `${focusSet.label}${focusSet.note ? ` - ${focusSet.note}` : ""}` });
   if (query.trim()) parts.push({ label: "Search", value: query.trim() });
   return parts;
 }
@@ -1141,6 +1144,7 @@ function clearProjectScope() {
   ownerFilter = "all";
   riskFilter = "all";
   goalFilter = "all";
+  focusSet = null;
   query = "";
   document.querySelector("#globalSearch").value = "";
   populateTeamFilters();
@@ -1921,7 +1925,9 @@ function renderReleases() {
             ? contents.map(project => `<button class="release-item${release.date && project.end > release.date ? " release-item-late" : ""}" data-open-project="${project.id}" type="button"><span class="status-pill status-${slug(project.status)}">${project.status}</span><span><strong>${project.name}</strong><small>ends ${formatDate(project.end)}</small></span></button>`).join("")
             : `<p class="alignment-empty">No initiative is assigned to this release yet.</p>`}</div>
           <div class="release-card-foot">
-            <span>${iconMarkup(risks.length ? "triangle-alert" : "package")}${contents.length} ${contents.length === 1 ? "initiative" : "initiatives"}${risks.length ? ` - ${risks.length} ${risks.length === 1 ? "finishes" : "finish"} after this date` : ""}</span>
+            ${contents.length
+              ? `<button class="release-count" data-release-focus="${release.id}" type="button" aria-label="Show the ${contents.length} ${contents.length === 1 ? "initiative" : "initiatives"} in ${release.name}">${iconMarkup(risks.length ? "triangle-alert" : "package")}${contents.length} ${contents.length === 1 ? "initiative" : "initiatives"}${risks.length ? ` - ${risks.length} ${risks.length === 1 ? "finishes" : "finish"} after this date` : ""}</button>`
+              : `<span>${iconMarkup("package")}No initiatives yet</span>`}
             <span class="release-card-actions"><button class="text-button" data-edit-release="${release.id}" type="button">Edit</button><button class="text-button danger-text" data-delete-release="${release.id}" type="button">Delete</button></span>
           </div>
         </article>`;
@@ -4298,6 +4304,25 @@ function applyGoalScope(value) {
   showToast(goal ? `Showing initiatives serving "${goal.title}"` : "Showing initiatives not linked to a goal");
 }
 
+// A metric is only meaningful if it can be traced back. A focus set is the
+// exact list of initiatives a figure was computed from, applied to the shared
+// project scope so the Projects list shows those records and nothing else.
+function applyFocusSet(label, list, note = "") {
+  focusSet = { label, note, ids: new Set(list.map(project => project.id)) };
+  populateTeamFilters();
+  if (activeView !== "projects") switchView("projects");
+  renderProjects();
+  showToast(list.length
+    ? `Showing the ${list.length} ${list.length === 1 ? "initiative" : "initiatives"} behind "${label}"`
+    : `No initiatives are behind "${label}"`);
+}
+
+function focusMetric(key) {
+  const metric = roadmapSuccessMetrics().find(entry => entry.key === key);
+  if (!metric) return;
+  applyFocusSet(metric.label, metric.projects, metric.sourceNote);
+}
+
 function renderRoadmapDependencies() {
   const visible = getRoadmapVisibleProjects();
   const visibleIds = new Set(visible.map(project => project.id));
@@ -4363,10 +4388,10 @@ function renderRoadmapContention() {
   document.querySelector("#contentionFlows").innerHTML = overlaps.length
     ? overlaps.slice(0, 4).map((overlap, index) => `
       <div class="dependency-flow">
-        <div><span class="project-icon ${colors[index % 4]}">${overlap.a.code}</span><strong>${overlap.a.name}</strong></div>
+        <button class="dependency-node" data-open-project="${overlap.a.id}" type="button" aria-label="Open ${overlap.a.name}"><span class="project-icon ${colors[index % 4]}">${overlap.a.code}</span><span><strong>${overlap.a.name}</strong><small>${formatDate(overlap.a.start)} - ${formatDate(overlap.a.end)}</small></span></button>
         <i data-lucide="arrow-left-right"></i>
-        <div><span class="project-icon ${colors[(index + 2) % 4]}">${overlap.b.code}</span><strong>${overlap.b.name}</strong></div>
-        <span class="dependency-meta">${overlap.team} - ${overlap.days}d overlap</span>
+        <button class="dependency-node" data-open-project="${overlap.b.id}" type="button" aria-label="Open ${overlap.b.name}"><span class="project-icon ${colors[(index + 2) % 4]}">${overlap.b.code}</span><span><strong>${overlap.b.name}</strong><small>${formatDate(overlap.b.start)} - ${formatDate(overlap.b.end)}</small></span></button>
+        <button class="dependency-meta" data-contention-focus="${overlap.a.id}:${overlap.b.id}" type="button" aria-label="Show both initiatives sharing ${overlap.team}">${iconMarkup("list-filter")}${overlap.team} - ${overlap.days}d overlap</button>
       </div>`).join("")
     : `<p class="dependency-empty">No two initiatives on the same team overlap in this horizon.</p>`;
   const note = document.querySelector("#contentionNote");
@@ -4380,18 +4405,26 @@ function roadmapSuccessMetrics() {
   const range = timelineRange();
   const visible = getRoadmapVisibleProjects();
   const delivery = visible.filter(project => deliveryStatuses.includes(project.status));
-  const healthy = visible.filter(project => statusGroups.healthy.includes(project.status)).length;
-  const holding = delivery.filter(project => !["Off track", "Pause"].includes(project.status)).length;
+  const healthy = visible.filter(project => statusGroups.healthy.includes(project.status));
+  const holding = delivery.filter(project => !["Off track", "Pause"].includes(project.status));
   const milestones = visible.filter(project => {
     const date = new Date(`${project.milestoneDate}T12:00:00`);
     return date >= range.start && date <= range.end;
-  }).length;
+  });
   const share = (count, total) => (total ? Math.round(count / total * 100) : 0);
   return [
-    { label: "On-track share", value: share(healthy, delivery.length), unit: "%", target: 80, hint: `${healthy} of ${delivery.length} in delivery` },
-    { label: "Schedule confidence", value: share(holding, delivery.length), unit: "%", target: 90, hint: "not off track or paused" },
-    { label: "Average completion", value: visible.length ? Math.round(visible.reduce((sum, project) => sum + project.progress, 0) / visible.length) : 0, unit: "%", target: 60, hint: `across ${visible.length} ${visible.length === 1 ? "initiative" : "initiatives"}` },
-    { label: "Milestones committed", value: milestones, unit: "", target: null, hint: range.milestoneLabel }
+    { key: "on-track", label: "On-track share", value: share(healthy.length, delivery.length), unit: "%", target: 80,
+      hint: `${healthy.length} of ${delivery.length} in delivery`, projects: healthy,
+      sourceNote: "the initiatives counted as on track or in flight" },
+    { key: "confidence", label: "Schedule confidence", value: share(holding.length, delivery.length), unit: "%", target: 90,
+      hint: "not off track or paused", projects: holding,
+      sourceNote: "the initiatives in delivery that are neither off track nor paused" },
+    { key: "completion", label: "Average completion", value: visible.length ? Math.round(visible.reduce((sum, project) => sum + project.progress, 0) / visible.length) : 0, unit: "%", target: 60,
+      hint: `across ${visible.length} ${visible.length === 1 ? "initiative" : "initiatives"}`, projects: visible,
+      sourceNote: "every initiative averaged into this figure" },
+    { key: "milestones", label: "Milestones committed", value: milestones.length, unit: "", target: null,
+      hint: range.milestoneLabel, projects: milestones,
+      sourceNote: `the initiatives with a milestone in ${range.milestoneLabel.toLowerCase()}` }
   ];
 }
 
@@ -4464,15 +4497,15 @@ function renderRoadmapStrategy() {
         const state = percent >= 100 ? "met" : percent >= 70 ? "on-track" : "behind";
         const linked = goalInitiatives(goal.id);
         const scored = rankedByScore(linked);
-        return `<article class="goal-card">
+        return `<button class="goal-card" data-goal-scope="${goal.id}" type="button" aria-label="Show the ${linked.length} ${linked.length === 1 ? "initiative" : "initiatives"} serving ${goal.title}">
           <div class="goal-card-top"><strong>${goal.title}</strong><span class="goal-state goal-${state}">${percent}% to target</span></div>
           <p>${goal.outcome}</p>
           <div class="goal-track"><span style="width:${percent}%"></span></div>
           <div class="goal-figures"><span>Now <strong>${current}${goal.unit || ""}</strong></span><span>Target <strong>${target}${goal.unit || ""}</strong></span></div>
           <div class="goal-initiatives">${linked.length
-            ? `<button class="goal-initiative-link" data-goal-scope="${goal.id}" type="button" aria-label="Show the ${linked.length} ${linked.length === 1 ? "initiative" : "initiatives"} serving ${goal.title}">${iconMarkup("route")}<strong>${linked.length}</strong> ${linked.length === 1 ? "initiative" : "initiatives"} serve this goal${scored.length ? ` - top score ${projectScore(scored[0])}` : ""}${iconMarkup("chevron-right")}</button>`
+            ? `<span class="goal-initiative-link">${iconMarkup("route")}<strong>${linked.length}</strong> ${linked.length === 1 ? "initiative" : "initiatives"} serve this goal${scored.length ? ` - top score ${projectScore(scored[0])}` : ""}${iconMarkup("chevron-right")}</span>`
             : `<span class="goal-initiative-empty">${iconMarkup("unlink")}No initiative is linked to this goal yet</span>`}</div>
-        </article>`;
+        </button>`;
       }).join("")
     : `<p class="goal-empty">No strategic goals recorded. Use Edit strategy to add the outcomes this roadmap serves.</p>`;
   const unlinked = getRoadmapVisibleProjects().filter(project => !project.goalIds.length);
@@ -4489,12 +4522,14 @@ function renderRoadmapStrategy() {
 
   document.querySelector("#roadmapMetrics").innerHTML = roadmapSuccessMetrics().map(metric => {
     const state = metric.target === null ? "neutral" : metric.value >= metric.target ? "met" : metric.value >= metric.target - 15 ? "watch" : "behind";
-    return `<article class="success-metric metric-${state}">
+    const count = metric.projects.length;
+    return `<button class="success-metric metric-${state}" data-metric-focus="${metric.key}" type="button" aria-label="Show the ${count} ${count === 1 ? "initiative" : "initiatives"} behind ${metric.label}">
       <span class="success-metric-label">${metric.label}</span>
       <strong>${metric.value}${metric.unit}</strong>
       <small>${metric.hint}</small>
       <span class="success-metric-target">${metric.target === null ? "No target set" : `Target ${metric.target}${metric.unit}`}</span>
-    </article>`;
+      <span class="card-source">${iconMarkup("list-filter")}${count} ${count === 1 ? "initiative" : "initiatives"}</span>
+    </button>`;
   }).join("");
 }
 
@@ -5243,6 +5278,19 @@ document.addEventListener("click", event => {
   if (openProjectButton) renderProjectPage(openProjectButton.dataset.openProject);
   const goalScopeButton = event.target.closest("[data-goal-scope]");
   if (goalScopeButton) applyGoalScope(goalScopeButton.dataset.goalScope);
+  const metricButton = event.target.closest("[data-metric-focus]");
+  if (metricButton) focusMetric(metricButton.dataset.metricFocus);
+  const contentionButton = event.target.closest("[data-contention-focus]");
+  if (contentionButton) {
+    const pair = contentionButton.dataset.contentionFocus.split(":").map(Number)
+      .map(id => projects.find(project => project.id === id)).filter(Boolean);
+    if (pair.length) applyFocusSet(`${pair[0].team} overlap`, pair, "the two initiatives sharing this team at the same time");
+  }
+  const releaseFocusButton = event.target.closest("[data-release-focus]");
+  if (releaseFocusButton) {
+    const release = releaseById(releaseFocusButton.dataset.releaseFocus);
+    if (release) applyFocusSet(release.name, releaseContents(release.id), "the initiatives assigned to this release");
+  }
   const shareProjectButton = event.target.closest("[data-share-project]");
   if (shareProjectButton) {
     const project = projects.find(item => item.id === Number(shareProjectButton.dataset.shareProject));
