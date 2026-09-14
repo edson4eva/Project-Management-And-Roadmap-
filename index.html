@@ -171,6 +171,7 @@
                   <select id="riskFilter" aria-label="Filter by risk level"><option value="all">All risk levels</option></select>
                   <select id="teamFilter" aria-label="Filter by team"><option value="all">All teams</option></select>
                   <select id="unitFilter" aria-label="Filter by unit"><option value="all">All units</option></select>
+                <select id="goalFilter" aria-label="Filter by strategic goal"><option value="all">All goals</option></select>
                 </div>
                 <div class="segmented-control" aria-label="Project layout">
                   <button class="active" data-layout="table" type="button" aria-label="Table view"><i data-lucide="list"></i></button>
@@ -251,6 +252,7 @@
             <article class="panel goal-panel">
               <div class="panel-heading"><div><span class="section-kicker">Strategic goals</span><h2>Outcomes this roadmap serves</h2></div><span class="count-badge" id="roadmapGoalCount">0</span></div>
               <div class="goal-list" id="roadmapGoals"></div>
+              <p class="goal-coverage hidden" id="goalCoverage"></p>
             </article>
             <article class="panel success-panel">
               <div class="panel-heading"><div><span class="section-kicker">Metrics for success</span><h2>How we know it is working</h2></div><i data-lucide="target"></i></div>
@@ -270,6 +272,10 @@
                 <span class="roadmap-period-label" id="roadmapPeriodLabel"></span>
                 <select id="roadmapFiscalYear" aria-label="Roadmap fiscal year"></select>
                 <select id="roadmapTeamFilter" aria-label="Filter roadmap by team"><option value="all">All teams</option></select>
+                <select id="roadmapSort" aria-label="Order initiatives within each unit">
+                  <option value="schedule">Order by start date</option>
+                  <option value="score">Order by priority score</option>
+                </select>
               </div>
               <div class="roadmap-legend">
                 <span><i class="legend-dot" style="background:var(--green)"></i>In delivery</span>
@@ -295,6 +301,23 @@
               <div class="panel-heading"><div><span class="section-kicker">Cross-initiative</span><h2>Schedule contention</h2></div><span class="count-badge" id="contentionCount">0</span></div>
               <div id="contentionFlows"></div>
               <p class="dependency-note" id="contentionNote"></p>
+            </article>
+          </div>
+
+          <div class="roadmap-bottom-grid">
+            <article class="panel dependency-panel">
+              <div class="panel-heading"><div><span class="section-kicker">Declared dependencies</span><h2>What waits on what</h2></div><span class="count-badge" id="dependencyCount">0</span></div>
+              <div id="dependencyLinks"></div>
+              <p class="dependency-note" id="dependencyNote"></p>
+            </article>
+            <article class="panel priority-panel">
+              <div class="panel-heading">
+                <div><span class="section-kicker">Prioritization</span><h2>Highest scoring first</h2></div>
+                <select id="roadmapScoreModel" aria-label="Prioritization model"></select>
+              </div>
+              <p class="priority-model-line"><span id="priorityCount">0</span> scored on <strong id="priorityModelLabel"></strong></p>
+              <div id="priorityRanking"></div>
+              <p class="dependency-note" id="priorityNote"></p>
             </article>
           </div>
         </section>
@@ -468,6 +491,21 @@
           <div id="phaseRows"></div>
           <p class="phase-empty" id="phaseEmpty">No phases yet. Add one to break this project into stages.</p>
           <button class="secondary-button phase-add" id="addPhaseButton" type="button"><i data-lucide="plus"></i>Add phase</button>
+        </div>
+        <div class="form-section-title full-field"><span>05</span><div><strong>Strategy alignment</strong><small>Which goals this serves, what it waits on, and how it scores</small></div></div>
+        <div class="full-field alignment-field">
+          <span class="alignment-label">Strategic goals served</span>
+          <div class="goal-check-list" id="projectGoalFields"></div>
+        </div>
+        <div class="full-field alignment-field">
+          <span class="alignment-label">Depends on <small>this initiative cannot finish until these do</small></span>
+          <select name="dependsOn" id="projectDependsOn" multiple size="6" aria-describedby="dependsOnHint"></select>
+          <small class="field-hint" id="dependsOnHint">Ctrl-click or Cmd-click to select more than one, or to clear a selection</small>
+        </div>
+        <div class="full-field alignment-field">
+          <span class="alignment-label">Prioritization <small id="projectScoreModelName"></small></span>
+          <div class="score-field-grid" id="projectScoreFields"></div>
+          <p class="score-preview" id="projectScorePreview"></p>
         </div>
       </div>
       <div class="modal-footer"><button class="text-button" id="cancelProjectModal" type="button">Cancel</button><button class="primary-button" id="saveProjectButton" type="submit"><i data-lucide="plus"></i><span>Create project</span></button></div>

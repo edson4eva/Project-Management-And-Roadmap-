@@ -3,7 +3,157 @@ const AS_OF_DATE = new Date("2025-09-10T12:00:00");
 const AS_OF_ISO = "2025-09-10";
 // Bumped when the seed portfolio changes shape, so a browser holding the previous
 // seed picks up the new one instead of silently keeping stale projects.
-const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1" };
+const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1", scoreModel: "pb-score-model-v1", ideas: "pb-ideas-v1", feedback: "pb-feedback-v1", releases: "pb-releases-v1", views: "pb-saved-views-v1", fields: "pb-custom-fields-v1", notes: "pb-project-notes-v1", history: "pb-project-history-v1", specs: "pb-project-specs-v1" };
+// ---------------------------------------------------------------------------
+// Strategy alignment, dependencies and prioritization.
+// Every figure below is computed from the project records - a project's goal
+// links, its declared predecessors, and the scoring numbers a user typed in.
+// Nothing here carries data of its own, and nothing is seeded.
+// ---------------------------------------------------------------------------
+const SCORE_MODELS = {
+  "value-effort": {
+    label: "Value vs effort",
+    hint: "Value divided by effort. A higher score is more return for the work.",
+    decimals: 2,
+    fields: [
+      { key: "value", label: "Value", min: 1, max: 5, step: 1, help: "1 low - 5 high" },
+      { key: "effort", label: "Effort", min: 1, max: 5, step: 1, help: "1 small - 5 large" }
+    ],
+    score: scoring => (scoring.value && scoring.effort ? scoring.value / scoring.effort : null)
+  },
+  rice: {
+    label: "RICE",
+    hint: "Reach x Impact x Confidence / Effort - the standard RICE formula.",
+    decimals: 1,
+    fields: [
+      { key: "reach", label: "Reach", min: 0, max: null, step: 1, help: "people affected per quarter" },
+      { key: "impact", label: "Impact", min: 0, max: 3, step: 0.25, help: "0.25 minimal - 3 massive" },
+      { key: "confidence", label: "Confidence", min: 0, max: 100, step: 5, help: "% certainty in the numbers" },
+      { key: "effort", label: "Effort", min: 0, max: null, step: 0.5, help: "person-months" }
+    ],
+    score: scoring => (scoring.reach && scoring.impact && scoring.confidence && scoring.effort
+      ? scoring.reach * scoring.impact * (scoring.confidence / 100) / scoring.effort
+      : null)
+  },
+  weighted: {
+    label: "Weighted scoring",
+    hint: "(Value x4 + Urgency x3 + Strategic fit x3) / 10, divided by effort.",
+    decimals: 2,
+    fields: [
+      { key: "value", label: "Value", min: 1, max: 5, step: 1, help: "1 low - 5 high" },
+      { key: "urgency", label: "Urgency", min: 1, max: 5, step: 1, help: "1 can wait - 5 now" },
+      { key: "fit", label: "Strategic fit", min: 1, max: 5, step: 1, help: "1 peripheral - 5 core" },
+      { key: "effort", label: "Effort", min: 1, max: 5, step: 1, help: "1 small - 5 large" }
+    ],
+    score: scoring => (scoring.value && scoring.urgency && scoring.fit && scoring.effort
+      ? (scoring.value * 4 + scoring.urgency * 3 + scoring.fit * 3) / 10 / scoring.effort
+      : null)
+  }
+};
+const SCORE_FIELD_KEYS = [...new Set(Object.values(SCORE_MODELS).flatMap(model => model.fields.map(field => field.key)))];
+const DEFAULT_SCORE_MODEL = "value-effort";
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function loadScoreModel() {
+  const saved = localStorage.getItem(STORAGE.scoreModel);
+  return SCORE_MODELS[saved] ? saved : DEFAULT_SCORE_MODEL;
+}
+
+function saveScoreModel() {
+  localStorage.setItem(STORAGE.scoreModel, scoreModel);
+}
+
+// Adds the alignment fields to a stored project without inventing values:
+// an unlinked, unscored project stays unlinked and unscored.
+function normalizeProjectAlignment(project) {
+  const scoring = project.scoring && typeof project.scoring === "object" ? project.scoring : {};
+  project.goalIds = Array.isArray(project.goalIds) ? [...new Set(project.goalIds.map(Number).filter(Number.isFinite))] : [];
+  project.dependsOn = Array.isArray(project.dependsOn) ? [...new Set(project.dependsOn.map(Number).filter(Number.isFinite))] : [];
+  project.scoring = Object.fromEntries(SCORE_FIELD_KEYS.map(key => [key, numberOrNull(scoring[key])]));
+  return project;
+}
+
+function activeScoreModel() {
+  return SCORE_MODELS[scoreModel] || SCORE_MODELS[DEFAULT_SCORE_MODEL];
+}
+
+function projectScore(project, model = activeScoreModel()) {
+  const raw = model.score(project.scoring || {});
+  return raw === null || !Number.isFinite(raw) ? null : Number(raw.toFixed(model.decimals));
+}
+
+function isScored(project) {
+  return projectScore(project) !== null;
+}
+
+// Only models carrying both a value and an effort can place work on the
+// classic two-by-two; RICE has no value axis, so it returns nothing.
+function scoreQuadrant(project) {
+  const value = project.scoring?.value;
+  const effort = project.scoring?.effort;
+  if (!value || !effort) return null;
+  const highValue = value >= 4;
+  const highEffort = effort >= 4;
+  if (highValue && !highEffort) return { key: "quick-win", label: "Quick win" };
+  if (highValue && highEffort) return { key: "big-bet", label: "Big bet" };
+  if (!highValue && !highEffort) return { key: "fill-in", label: "Fill-in" };
+  return { key: "costly", label: "High cost, low value" };
+}
+
+function rankedByScore(list) {
+  return list
+    .filter(isScored)
+    .slice()
+    .sort((first, second) => projectScore(second) - projectScore(first) || first.name.localeCompare(second.name));
+}
+
+function goalInitiatives(goalId, list = projects) {
+  return list.filter(project => project.goalIds.includes(Number(goalId)));
+}
+
+function goalsForProject(project) {
+  return (roadmapStrategy.goals || []).filter(goal => project.goalIds.includes(goal.id));
+}
+
+function predecessorsOf(project, list = projects) {
+  return project.dependsOn.map(id => list.find(item => item.id === id)).filter(Boolean);
+}
+
+function dependentsOf(project, list = projects) {
+  return list.filter(item => item.dependsOn.includes(project.id));
+}
+
+// A link is in conflict when the predecessor is still running after the
+// dependent is due to start. Both dates come from the project records.
+function dependencyLinks(list = projects) {
+  const byId = new Map(list.map(project => [project.id, project]));
+  const links = [];
+  list.forEach(project => project.dependsOn.forEach(id => {
+    const predecessor = byId.get(id);
+    if (!predecessor) return;
+    const overlap = Math.ceil((new Date(`${predecessor.end}T12:00:00`) - new Date(`${project.start}T12:00:00`)) / DAY);
+    links.push({ predecessor, dependent: project, conflict: overlap > 0, days: Math.max(0, overlap) });
+  }));
+  return links;
+}
+
+function wouldCreateCycle(projectId, dependsOn, list = projects) {
+  const edges = new Map(list.map(project => [project.id, project.id === projectId ? dependsOn : project.dependsOn]));
+  edges.set(projectId, dependsOn);
+  const visit = (id, seen) => {
+    if (id === projectId) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return (edges.get(id) || []).some(next => visit(next, seen));
+  };
+  return dependsOn.some(id => visit(id, new Set()));
+}
+
 const AS_OF_LONG = "September 10, 2025";
 const AUTH_STORAGE_KEY = "platforms-branch-session";
 const DEFAULT_PASSWORD = "1234";
@@ -207,6 +357,7 @@ function saveRoadmapStrategy() {
 }
 
 let roadmapStrategy = loadRoadmapStrategy();
+let scoreModel = loadScoreModel();
 // The deck tracks Privacy Portal as one initiative broken into phases, so the
 // four separate phase-projects collapse into a single project holding them.
 // Runs over seed and stored data alike, and is idempotent.
@@ -256,6 +407,8 @@ let teamFilter = "all";
 let unitFilter = "all";
 let ownerFilter = "all";
 let riskFilter = "all";
+let goalFilter = "all";
+let roadmapSort = "schedule";
 let roadmapQuarter = fiscalQuarterOf(AS_OF_DATE);
 let roadmapFullYear = false;
 let selectedFiscalYear = getFiscalYear(AS_OF_DATE);
@@ -416,9 +569,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit));
+    return consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)).map(normalizeProjectAlignment);
   } catch {
-    return consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit));
+    return consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)).map(normalizeProjectAlignment);
   }
 }
 
@@ -819,6 +972,18 @@ function refreshIcons() {
 
 // The Projects section owns portfolio scope. Every other view derives from this
 // predicate so a filter set on Projects is reflected wherever the data appears.
+// "none" is a real answer here: it finds the initiatives no goal claims yet.
+function matchesGoalFilter(project) {
+  if (goalFilter === "none") return !project.goalIds.length;
+  return project.goalIds.includes(Number(goalFilter));
+}
+
+function goalFilterLabel() {
+  if (goalFilter === "none") return "Not linked to a goal";
+  const goal = (roadmapStrategy.goals || []).find(item => item.id === Number(goalFilter));
+  return goal ? goal.title : "All goals";
+}
+
 function matchesProjectScope(project) {
   const normalized = query.trim().toLowerCase();
   const matchesQuery = !normalized
@@ -828,7 +993,8 @@ function matchesProjectScope(project) {
     && (teamFilter === "all" || project.team === teamFilter)
     && (unitFilter === "all" || matchesUnitFilter(project))
     && (ownerFilter === "all" || project.owner === ownerFilter)
-    && (riskFilter === "all" || project.risk === riskFilter);
+    && (riskFilter === "all" || project.risk === riskFilter)
+    && (goalFilter === "all" || matchesGoalFilter(project));
 }
 
 function activeProjectScope() {
@@ -840,6 +1006,7 @@ function activeProjectScope() {
   }
   if (ownerFilter !== "all") parts.push({ label: "Owner", value: ownerFilter });
   if (riskFilter !== "all") parts.push({ label: "Risk", value: riskFilter });
+  if (goalFilter !== "all") parts.push({ label: "Goal", value: goalFilterLabel() });
   if (query.trim()) parts.push({ label: "Search", value: query.trim() });
   return parts;
 }
@@ -850,11 +1017,13 @@ function clearProjectScope() {
   unitFilter = "all";
   ownerFilter = "all";
   riskFilter = "all";
+  goalFilter = "all";
   query = "";
   document.querySelector("#globalSearch").value = "";
   populateTeamFilters();
   document.querySelector("#statusFilter").value = "all";
   document.querySelector("#riskFilter").value = "all";
+  document.querySelector("#goalFilter").value = "all";
   renderProjects();
   if (activeView === "roadmap") renderRoadmap();
 }
@@ -1159,6 +1328,49 @@ function projectCard(project, index) {
   </article>`;
 }
 
+// Everything in this section is read back from the project record: the goals it
+// is linked to, the initiatives on either side of its dependencies, and the
+// scoring numbers entered for it. An absent value says "not recorded".
+function projectAlignmentSection(project) {
+  const goals = goalsForProject(project);
+  const waitingOn = predecessorsOf(project);
+  const blocking = dependentsOf(project);
+  const model = activeScoreModel();
+  const score = projectScore(project, model);
+  const quadrant = scoreQuadrant(project);
+  const linkRow = (items, emptyText, conflictTest) => items.length
+    ? `<div class="alignment-links">${items.map(item => {
+        const conflict = conflictTest(item);
+        return `<button class="alignment-link${conflict ? " alignment-link-conflict" : ""}" data-open-project="${item.id}" type="button"><span class="project-icon ${conflict ? "coral" : "teal"}">${initials(item.name)}</span><span><strong>${item.name}</strong><small>${formatDate(item.start)} - ${formatDate(item.end)}${conflict ? " - dates do not sequence" : ""}</small></span>${iconMarkup("chevron-right")}</button>`;
+      }).join("")}</div>`
+    : `<p class="alignment-empty">${emptyText}</p>`;
+  return `<section class="project-page-section alignment-section">
+    <div class="section-heading-row"><div><span class="section-kicker">Strategy alignment</span><h2>Goals, dependencies and priority</h2></div><button class="secondary-button" data-edit-project="${project.id}" type="button">${iconMarkup("pencil-line")}Edit alignment</button></div>
+    <div class="alignment-grid">
+      <article class="alignment-card">
+        <h3>${iconMarkup("target")}Strategic goals served</h3>
+        ${goals.length
+          ? `<ul class="alignment-goal-list">${goals.map(goal => `<li><button class="text-button" data-goal-scope="${goal.id}" type="button">${goal.title}</button><small>${goal.outcome || "No outcome recorded"}</small></li>`).join("")}</ul>`
+          : `<p class="alignment-empty">Not linked to a strategic goal yet.</p>`}
+      </article>
+      <article class="alignment-card">
+        <h3>${iconMarkup("git-merge")}Waits on</h3>
+        ${linkRow(waitingOn, "No predecessors declared.", item => new Date(`${item.end}T12:00:00`) > new Date(`${project.start}T12:00:00`))}
+        <h3 class="alignment-subhead">${iconMarkup("git-branch")}Blocks</h3>
+        ${linkRow(blocking, "Nothing depends on this initiative.", item => new Date(`${project.end}T12:00:00`) > new Date(`${item.start}T12:00:00`))}
+      </article>
+      <article class="alignment-card">
+        <h3>${iconMarkup("gauge")}Priority score</h3>
+        ${score === null
+          ? `<p class="alignment-empty">Not scored on ${model.label}. ${model.fields.map(field => field.label).join(", ")} are needed.</p>`
+          : `<p class="alignment-score"><strong>${score}</strong><small>${model.label}${quadrant ? ` - ${quadrant.label}` : ""}</small></p>
+             <ul class="alignment-score-inputs">${model.fields.map(field => `<li><span>${field.label}</span><strong>${project.scoring[field.key] ?? "-"}</strong></li>`).join("")}</ul>`}
+        <p class="alignment-note">${model.hint}</p>
+      </article>
+    </div>
+  </section>`;
+}
+
 function renderProjectPage(projectId) {
   const project = projects.find(item => item.id === Number(projectId));
   if (!project) return;
@@ -1197,6 +1409,7 @@ function renderProjectPage(projectId) {
             ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p><span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
             : `<div class="detail-phase-empty"><p>No phases recorded for this project yet.</p><button class="secondary-button" data-edit-phase="new" data-project-id="${project.id}" type="button">${iconMarkup("plus")}Add a phase</button></div>`}
         </section>
+        ${projectAlignmentSection(project)}
       </div>
       <aside class="project-detail-side">
         <section class="panel detail-side-panel"><div class="panel-heading"><div><span class="section-kicker">Schedule</span><h2>Milestones</h2></div>${iconMarkup("flag")}</div><div class="page-milestones">${dates.map(item => `<div class="page-milestone ${item[2] ? "complete" : ""}"><i>${item[2] ? iconMarkup("check") : ""}</i><span><strong>${item[0]}</strong><small>${formatDate(item[1], { month: "short", day: "numeric", year: "numeric" })}</small></span></div>`).join("")}</div></section>
@@ -1377,6 +1590,14 @@ function populateTeamFilters() {
   document.querySelector("#unitFilter").innerHTML = `<option value="all">All units</option>${unitOptions}`;
   const unitValues = ["all", ...units, ...units.flatMap(unit => subCategoriesFor(unit).map(sub => `sub:${unit}::${sub}`))];
   document.querySelector("#unitFilter").value = unitValues.includes(unitFilter) ? unitFilter : "all";
+  const goals = roadmapStrategy.goals || [];
+  const unlinked = projects.filter(project => !project.goalIds.length).length;
+  document.querySelector("#goalFilter").innerHTML = `<option value="all">All goals</option>`
+    + goals.map(goal => `<option value="${goal.id}">${goal.title} (${goalInitiatives(goal.id).length})</option>`).join("")
+    + (unlinked ? `<option value="none">Not linked to a goal (${unlinked})</option>` : "");
+  const goalValues = ["all", ...goals.map(goal => String(goal.id)), ...(unlinked ? ["none"] : [])];
+  if (!goalValues.includes(goalFilter)) goalFilter = "all";
+  document.querySelector("#goalFilter").value = goalFilter;
 }
 
 function populateFiscalYearFilters() {
@@ -2373,6 +2594,79 @@ function renderRoadmapScopeStrip() {
     : "";
 }
 
+// Declared dependencies, read from the initiatives in view. A link is only
+// drawn when both ends exist; a conflict is arithmetic on their own dates.
+// Clicking a goal filters the Projects section, which the roadmap then
+// inherits, so both sections always agree about what is in scope.
+function applyGoalScope(value) {
+  goalFilter = value;
+  populateTeamFilters();
+  document.querySelector("#goalFilter").value = goalFilter;
+  switchView("projects");
+  renderProjects();
+  const goal = value === "none" ? null : (roadmapStrategy.goals || []).find(item => item.id === Number(value));
+  showToast(goal ? `Showing initiatives serving "${goal.title}"` : "Showing initiatives not linked to a goal");
+}
+
+function renderRoadmapDependencies() {
+  const visible = getRoadmapVisibleProjects();
+  const visibleIds = new Set(visible.map(project => project.id));
+  const links = dependencyLinks(projects).filter(link => visibleIds.has(link.dependent.id) || visibleIds.has(link.predecessor.id));
+  const conflicts = links.filter(link => link.conflict);
+  document.querySelector("#dependencyCount").textContent = links.length;
+  document.querySelector("#dependencyLinks").innerHTML = links.length
+    ? links
+        .slice()
+        .sort((first, second) => Number(second.conflict) - Number(first.conflict) || second.days - first.days)
+        .slice(0, 5)
+        .map(link => `<div class="dependency-link${link.conflict ? " dependency-conflict" : ""}">
+          <button class="dependency-node" data-open-project="${link.predecessor.id}" type="button"><span class="project-icon teal">${initials(link.predecessor.name)}</span><span><strong>${link.predecessor.name}</strong><small>ends ${formatDate(link.predecessor.end)}</small></span></button>
+          <i class="dependency-arrow">${iconMarkup("arrow-right")}</i>
+          <button class="dependency-node" data-open-project="${link.dependent.id}" type="button"><span class="project-icon blue">${initials(link.dependent.name)}</span><span><strong>${link.dependent.name}</strong><small>starts ${formatDate(link.dependent.start)}</small></span></button>
+          <span class="dependency-verdict">${link.conflict ? `${iconMarkup("triangle-alert")}blocked by ${link.days}d` : `${iconMarkup("circle-check")}sequence holds`}</span>
+        </div>`).join("")
+    : `<p class="dependency-empty">No dependencies declared yet. Open an initiative, edit it, and use "Depends on" to record what it waits for.</p>`;
+  const note = document.querySelector("#dependencyNote");
+  note.innerHTML = `${iconMarkup(conflicts.length ? "triangle-alert" : "circle-check")}<span>${links.length
+    ? (conflicts.length
+        ? `${conflicts.length} of ${links.length} ${links.length === 1 ? "link" : "links"} cannot hold - a predecessor is still running when the dependent initiative is due to start.`
+        : `All ${links.length} declared ${links.length === 1 ? "dependency sequences" : "dependencies sequence"} correctly against the recorded dates.`)
+    : "Dependencies are declared on the initiative itself, so this panel stays empty until one is recorded."}</span>`;
+  note.classList.toggle("warning", conflicts.length > 0);
+}
+
+// Ranks only the initiatives that carry a full set of scoring inputs. Anything
+// unscored is reported as unscored rather than ranked at zero.
+function renderRoadmapPrioritization() {
+  const model = activeScoreModel();
+  const modelSelect = document.querySelector("#roadmapScoreModel");
+  modelSelect.innerHTML = Object.entries(SCORE_MODELS).map(([key, entry]) => `<option value="${key}"${key === scoreModel ? " selected" : ""}>${entry.label}</option>`).join("");
+  modelSelect.title = model.hint;
+  document.querySelector("#roadmapSort").value = roadmapSort;
+  const visible = getRoadmapVisibleProjects();
+  const ranked = rankedByScore(visible);
+  const unscored = visible.length - ranked.length;
+  document.querySelector("#priorityModelLabel").textContent = model.label;
+  document.querySelector("#priorityCount").textContent = ranked.length;
+  document.querySelector("#priorityRanking").innerHTML = ranked.length
+    ? ranked.slice(0, 6).map((project, index) => {
+        const quadrant = scoreQuadrant(project);
+        return `<button class="priority-row" data-open-project="${project.id}" type="button">
+          <span class="priority-rank">${index + 1}</span>
+          <span class="priority-name"><strong>${project.name}</strong><small>${project.unit}${quadrant ? ` - ${quadrant.label}` : ""}</small></span>
+          <span class="priority-score">${projectScore(project, model)}</span>
+        </button>`;
+      }).join("")
+    : `<p class="dependency-empty">Nothing is scored yet. Edit an initiative and fill in the ${model.fields.map(field => field.label.toLowerCase()).join(", ")} fields to rank it.</p>`;
+  const note = document.querySelector("#priorityNote");
+  note.innerHTML = `${iconMarkup(unscored ? "circle-help" : "circle-check")}<span>${visible.length
+    ? (unscored
+        ? `${ranked.length} of ${visible.length} ${visible.length === 1 ? "initiative" : "initiatives"} in this horizon carry a ${model.label} score. ${unscored} ${unscored === 1 ? "is" : "are"} unscored and cannot be ranked.`
+        : `Every initiative in this horizon carries a ${model.label} score.`)
+    : "No initiatives fall inside this horizon."}</span>`;
+  note.classList.toggle("warning", false);
+}
+
 function renderRoadmapContention() {
   const overlaps = scheduleContentions();
   document.querySelector("#contentionCount").textContent = overlaps.length;
@@ -2434,19 +2728,38 @@ function openStrategyModal() {
 function submitStrategy(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(document.querySelector("#strategyForm")));
+  const previousGoals = roadmapStrategy.goals || [];
+  let nextGoalId = Math.max(0, ...previousGoals.map(goal => goal.id || 0)) + 1;
   roadmapStrategy.vision = data.vision.trim();
-  roadmapStrategy.goals = Array.from({ length: STRATEGY_GOAL_SLOTS }, (_, index) => ({
-    id: index + 1,
-    title: (data[`goalTitle${index}`] || "").trim(),
-    outcome: (data[`goalOutcome${index}`] || "").trim(),
-    current: Number(data[`goalCurrent${index}`]) || 0,
-    target: Number(data[`goalTarget${index}`]) || 0,
-    unit: (data[`goalUnit${index}`] || "").trim()
-  })).filter(goal => goal.title);
+  roadmapStrategy.goals = Array.from({ length: STRATEGY_GOAL_SLOTS }, (_, index) => {
+    // Reuse the slot's existing id so initiatives already linked to this goal
+    // stay linked; only a genuinely new goal gets a new id.
+    const existing = previousGoals[index];
+    return {
+      id: existing?.id ?? nextGoalId++,
+      title: (data[`goalTitle${index}`] || "").trim(),
+      outcome: (data[`goalOutcome${index}`] || "").trim(),
+      current: Number(data[`goalCurrent${index}`]) || 0,
+      target: Number(data[`goalTarget${index}`]) || 0,
+      unit: (data[`goalUnit${index}`] || "").trim()
+    };
+  }).filter(goal => goal.title);
+  // A goal that is gone can no longer be served, so its links go with it.
+  const liveGoalIds = new Set(roadmapStrategy.goals.map(goal => goal.id));
+  let droppedLinks = 0;
+  projects.forEach(project => {
+    const kept = project.goalIds.filter(id => liveGoalIds.has(id));
+    droppedLinks += project.goalIds.length - kept.length;
+    project.goalIds = kept;
+  });
   saveRoadmapStrategy();
+  if (droppedLinks) saveProjects();
   document.querySelector("#strategyModal").close();
-  renderRoadmapStrategy();
-  showToast("Roadmap strategy updated");
+  populateTeamFilters();
+  renderAll();
+  showToast(droppedLinks
+    ? `Roadmap strategy updated - ${droppedLinks} initiative ${droppedLinks === 1 ? "link" : "links"} removed with the deleted ${droppedLinks === 1 ? "goal" : "goals"}`
+    : "Roadmap strategy updated");
 }
 
 function renderRoadmapStrategy() {
@@ -2459,14 +2772,30 @@ function renderRoadmapStrategy() {
         const current = Number(goal.current) || 0;
         const percent = target ? Math.min(100, Math.round(current / target * 100)) : 0;
         const state = percent >= 100 ? "met" : percent >= 70 ? "on-track" : "behind";
+        const linked = goalInitiatives(goal.id);
+        const scored = rankedByScore(linked);
         return `<article class="goal-card">
           <div class="goal-card-top"><strong>${goal.title}</strong><span class="goal-state goal-${state}">${percent}% to target</span></div>
           <p>${goal.outcome}</p>
           <div class="goal-track"><span style="width:${percent}%"></span></div>
           <div class="goal-figures"><span>Now <strong>${current}${goal.unit || ""}</strong></span><span>Target <strong>${target}${goal.unit || ""}</strong></span></div>
+          <div class="goal-initiatives">${linked.length
+            ? `<button class="goal-initiative-link" data-goal-scope="${goal.id}" type="button" aria-label="Show the ${linked.length} ${linked.length === 1 ? "initiative" : "initiatives"} serving ${goal.title}">${iconMarkup("route")}<strong>${linked.length}</strong> ${linked.length === 1 ? "initiative" : "initiatives"} serve this goal${scored.length ? ` - top score ${projectScore(scored[0])}` : ""}${iconMarkup("chevron-right")}</button>`
+            : `<span class="goal-initiative-empty">${iconMarkup("unlink")}No initiative is linked to this goal yet</span>`}</div>
         </article>`;
       }).join("")
     : `<p class="goal-empty">No strategic goals recorded. Use Edit strategy to add the outcomes this roadmap serves.</p>`;
+  const unlinked = getRoadmapVisibleProjects().filter(project => !project.goalIds.length);
+  const coverage = document.querySelector("#goalCoverage");
+  if (coverage) {
+    coverage.innerHTML = goals.length
+      ? `${iconMarkup(unlinked.length ? "triangle-alert" : "circle-check")}<span>${unlinked.length
+          ? `<button class="text-button" data-goal-scope="none" type="button">${unlinked.length} ${unlinked.length === 1 ? "initiative is" : "initiatives are"} not linked to any goal</button> in this horizon.`
+          : "Every initiative in this horizon is linked to a goal."}</span>`
+      : "";
+    coverage.classList.toggle("warning", goals.length > 0 && unlinked.length > 0);
+    coverage.classList.toggle("hidden", !goals.length);
+  }
 
   document.querySelector("#roadmapMetrics").innerHTML = roadmapSuccessMetrics().map(metric => {
     const state = metric.target === null ? "neutral" : metric.value >= metric.target ? "met" : metric.value >= metric.target - 15 ? "watch" : "behind";
@@ -2523,13 +2852,25 @@ function timelineRowMarkup(project, range, gridMarkup, todayPosition, iconColor)
   return `<div class="timeline-row"><div class="timeline-project"><span class="project-icon ${iconColor}">${project.code}</span><div><strong title="${project.name}">${project.name}</strong><small>${project.team} - ${project.owner}</small></div></div><div class="timeline-track" style="${todayPosition === null ? "" : `--today:${todayPosition}%`}">${gridMarkup}${todayPosition === null ? "" : `<span class="today-line"></span>`}<button class="${timelineBarClass(project.status)} open-project" data-id="${project.id}" type="button" style="--start:${start}%;--width:${width}%;--bar-color:${statusLegendColors[project.status] || "var(--green)"}" title="${project.name}: ${formatDate(project.start)} to ${formatDate(project.end)} - ${project.status}, ${project.progress}% complete" aria-label="${project.name}, ${project.status}, ${project.progress}% complete"><span class="timeline-bar-fill" style="width:${project.progress}%"></span><span class="timeline-bar-label">${project.progress}%</span></button>${milestoneMarkup}</div></div>`;
 }
 
-function timelineLanesMarkup(entries, range, gridMarkup, todayPosition, noun) {
+function timelineLanesMarkup(entries, range, gridMarkup, todayPosition, noun, order = "schedule") {
   let barIndex = 0;
+  // Ordering by score puts unscored initiatives last rather than treating a
+  // missing score as zero.
+  const compare = order === "score"
+    ? (first, second) => {
+        const firstScore = projectScore(first);
+        const secondScore = projectScore(second);
+        if (firstScore === null && secondScore === null) return first.start.localeCompare(second.start);
+        if (firstScore === null) return 1;
+        if (secondScore === null) return -1;
+        return secondScore - firstScore || first.start.localeCompare(second.start);
+      }
+    : (first, second) => first.start.localeCompare(second.start);
   return entries.map(([unit, unitProjects]) => {
     const body = collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => {
       const rows = group.items
         .slice()
-        .sort((first, second) => first.start.localeCompare(second.start))
+        .sort(compare)
         .map(project => {
           const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
           barIndex += 1;
@@ -2580,7 +2921,7 @@ function renderRoadmap() {
   const laneEntries = projectUnits
     .map(unit => [unit, visible.filter(project => project.unit === unit)])
     .filter(([, items]) => items.length);
-  const laneMarkup = timelineLanesMarkup(laneEntries, range, gridMarkup, todayPosition, "initiative");
+  const laneMarkup = timelineLanesMarkup(laneEntries, range, gridMarkup, todayPosition, "initiative", roadmapSort);
 
   elements.timeline.innerHTML = `
     ${timelineResizerMarkup("initiative")}
@@ -2599,6 +2940,8 @@ function renderRoadmap() {
   elements.roadmapSummary.innerHTML = summary.map(item => `<button class="roadmap-summary-item drilldown-card" data-drilldown="${item[0]}" type="button" style="--summary-color:${item[4]};--summary-bg:${item[5]}" aria-label="Drill down into ${item[2]}"><i>${iconMarkup(item[3])}</i><div><strong>${item[1]}</strong><span>${item[2]}</span></div>${iconMarkup("chevron-right")}</button>`).join("");
   renderMilestones(visible, range);
   renderRoadmapContention();
+  renderRoadmapDependencies();
+  renderRoadmapPrioritization();
   renderRoadmapStrategy();
   renderRoadmapScopeStrip();
   renderQuarterPicker();
@@ -2726,6 +3069,84 @@ function updateWorkspaceContext(view) {
   refreshIcons();
 }
 
+// ---- Strategy alignment fields on the project form ------------------------
+
+function renderProjectGoalChecks(goalIds = []) {
+  const goals = roadmapStrategy.goals || [];
+  const host = document.querySelector("#projectGoalFields");
+  host.innerHTML = goals.length
+    ? goals.map(goal => `<label class="goal-check"><input type="checkbox" data-goal-check value="${goal.id}"${goalIds.includes(goal.id) ? " checked" : ""}><span><strong>${goal.title}</strong><small>${goal.outcome || "No outcome recorded"}</small></span></label>`).join("")
+    : `<p class="alignment-empty">No strategic goals recorded yet. Add them under Roadmap - Edit strategy, then link this initiative to one.</p>`;
+}
+
+function renderProjectDependsOptions(project) {
+  const select = document.querySelector("#projectDependsOn");
+  const selected = project ? project.dependsOn : [];
+  const options = projectUnits
+    .map(unit => {
+      const items = projects
+        .filter(item => item.unit === unit && (!project || item.id !== project.id))
+        .sort((first, second) => first.name.localeCompare(second.name));
+      return items.length
+        ? `<optgroup label="${unit}">${items.map(item => `<option value="${item.id}"${selected.includes(item.id) ? " selected" : ""}>${item.name}</option>`).join("")}</optgroup>`
+        : "";
+    })
+    .join("");
+  select.innerHTML = options || `<option value="" disabled>No other initiatives to depend on yet</option>`;
+}
+
+function renderProjectScoreFields(scoring = {}) {
+  const model = activeScoreModel();
+  document.querySelector("#projectScoreModelName").textContent = `${model.label} - ${model.hint}`;
+  document.querySelector("#projectScoreFields").innerHTML = model.fields.map(field => `<label>${field.label}<input type="number" data-score-field="${field.key}" min="${field.min}"${field.max === null ? "" : ` max="${field.max}"`} step="${field.step}" value="${scoring[field.key] ?? ""}" placeholder="unscored"><small>${field.help}</small></label>`).join("");
+  updateScorePreview();
+}
+
+function readScoreFields() {
+  const model = activeScoreModel();
+  const scoring = {};
+  model.fields.forEach(field => {
+    const input = document.querySelector(`[data-score-field="${field.key}"]`);
+    scoring[field.key] = input ? numberOrNull(input.value) : null;
+  });
+  return scoring;
+}
+
+// The preview only ever reflects what is typed in: with a field blank it says
+// so rather than showing a partial score.
+function updateScorePreview() {
+  const model = activeScoreModel();
+  const scoring = readScoreFields();
+  const preview = document.querySelector("#projectScorePreview");
+  if (!preview) return;
+  const raw = model.score(scoring);
+  if (raw === null || !Number.isFinite(raw)) {
+    const missing = model.fields.filter(field => scoring[field.key] === null || scoring[field.key] === 0).map(field => field.label);
+    preview.textContent = missing.length
+      ? `Not scored yet - ${missing.join(", ").toLowerCase()} still needed.`
+      : "Not scored yet.";
+    preview.classList.remove("scored");
+    return;
+  }
+  const quadrant = scoreQuadrant({ scoring });
+  preview.textContent = `${model.label} score ${raw.toFixed(model.decimals)}${quadrant ? ` - ${quadrant.label}` : ""}`;
+  preview.classList.add("scored");
+}
+
+function renderAlignmentFields(project = null) {
+  renderProjectGoalChecks(project ? project.goalIds : []);
+  renderProjectDependsOptions(project);
+  renderProjectScoreFields(project ? project.scoring : {});
+}
+
+function readAlignmentFields(existing) {
+  const goalIds = [...document.querySelectorAll("#projectGoalFields [data-goal-check]:checked")].map(input => Number(input.value));
+  const dependsOn = [...document.querySelector("#projectDependsOn").selectedOptions].map(option => Number(option.value)).filter(Number.isFinite);
+  // Keep numbers captured under a different model rather than dropping them.
+  const scoring = { ...(existing?.scoring || {}), ...readScoreFields() };
+  return { goalIds, dependsOn, scoring };
+}
+
 function openModal() {
   projectBeingEdited = null;
   elements.form.reset();
@@ -2740,6 +3161,7 @@ function openModal() {
   populateProjectUnitOptions(elements.form.elements.unit.value);
   populateProjectSubUnitOptions(elements.form.elements.unit.value, "");
   renderPhaseRows([]);
+  renderAlignmentFields(null);
   populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
   document.querySelector("#projectModalKicker").textContent = "Portfolio intake";
   document.querySelector("#projectModalTitle").textContent = "Create a new project";
@@ -2759,6 +3181,7 @@ function openEditProjectModal(projectId) {
   populateProjectUnitOptions(project.unit);
   populateProjectSubUnitOptions(project.unit, project.subUnit);
   renderPhaseRows(project.phases);
+  renderAlignmentFields(project);
   document.querySelectorAll(".phase-row-focused").forEach(row => row.classList.remove("phase-row-focused"));
   populateProjectTeamOptions(project.team);
   const values = { name: project.name, unit: project.unit, team: project.team, subUnit: project.subUnit || "", owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
@@ -3022,7 +3445,15 @@ function submitProject(event) {
   const memberNames = [data.owner, ...contributorNames.filter(name => name.toLowerCase() !== data.owner.toLowerCase())];
   const existing = projects.find(project => project.id === projectBeingEdited);
   const members = existing && !existing.memberNames && !contributorNames.length ? [initials(data.owner), ...existing.members.slice(1)] : memberNames.map(initials);
-  const projectData = { name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const alignment = readAlignmentFields(existing);
+  if (existing && wouldCreateCycle(existing.id, alignment.dependsOn)) {
+    const select = elements.form.elements.dependsOn;
+    select.setCustomValidity("That dependency is circular - the initiative would end up waiting on itself.");
+    select.reportValidity();
+    return;
+  }
+  elements.form.elements.dependsOn.setCustomValidity("");
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -3073,6 +3504,10 @@ document.addEventListener("click", event => {
   if (deleteProjectButton) openDeleteProjectModal(deleteProjectButton.dataset.deleteProject);
   const drilldownButton = event.target.closest("[data-drilldown]");
   if (drilldownButton) renderPortfolioDrawer(drilldownButton.dataset.drilldown);
+  const openProjectButton = event.target.closest("[data-open-project]");
+  if (openProjectButton) renderProjectPage(openProjectButton.dataset.openProject);
+  const goalScopeButton = event.target.closest("[data-goal-scope]");
+  if (goalScopeButton) applyGoalScope(goalScopeButton.dataset.goalScope);
   const tabButton = event.target.closest("[data-project-tab]");
   if (tabButton) renderDrawer(tabButton.dataset.id, tabButton.dataset.projectTab);
   const workstreamButton = event.target.closest("[data-workstream]");
@@ -3198,6 +3633,15 @@ document.querySelector("#teamFilter").addEventListener("change", event => { team
 document.querySelector("#unitFilter").addEventListener("change", event => { unitFilter = event.target.value; renderProjects(); });
 document.querySelector("#ownerFilter").addEventListener("change", event => { ownerFilter = event.target.value; renderProjects(); });
 document.querySelector("#riskFilter").addEventListener("change", event => { riskFilter = event.target.value; renderProjects(); });
+document.querySelector("#goalFilter").addEventListener("change", event => { goalFilter = event.target.value; renderProjects(); if (activeView === "roadmap") renderRoadmap(); });
+document.querySelector("#roadmapSort").addEventListener("change", event => { roadmapSort = event.target.value; renderRoadmap(); });
+document.querySelector("#roadmapScoreModel").addEventListener("change", event => {
+  scoreModel = SCORE_MODELS[event.target.value] ? event.target.value : DEFAULT_SCORE_MODEL;
+  saveScoreModel();
+  renderRoadmap();
+  if (elements.modal.open) renderProjectScoreFields(projectBeingEdited ? projects.find(item => item.id === projectBeingEdited)?.scoring : readScoreFields());
+});
+document.querySelector("#projectScoreFields").addEventListener("input", updateScorePreview);
 document.querySelector("#roadmapTeamFilter").addEventListener("change", event => { teamFilter = event.target.value; populateTeamFilters(); renderProjects(); renderRoadmap(); });
 document.querySelector("#projectFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
 document.querySelector("#roadmapFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
