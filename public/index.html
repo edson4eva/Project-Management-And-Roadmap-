@@ -217,7 +217,7 @@
 
             <div class="project-table-wrap" id="tableLayout">
               <table class="project-table">
-                <thead><tr><th>Project</th><th>Status</th><th>Progress</th><th>Owner</th><th>Due date</th><th>Risk</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Project</th><th>Status</th><th>Progress</th><th>Owner</th><th>Due date</th><th>FY / quarter</th><th>Risk</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody id="projectTableBody"></tbody>
               </table>
             </div>
@@ -628,7 +628,8 @@
         <div class="form-section-title full-field"><span>01</span><div><strong>Project identity</strong><small>Information shown across portfolio views</small></div></div>
         <label>Project name<input name="name" required maxlength="60" placeholder="e.g. Partner portal launch"></label>
         <label>Unit<select name="unit" required></select></label>
-        <label id="subUnitField">Sub-category<select name="subUnit"></select></label>
+        <label id="subUnitField">Category<select name="subUnit"></select></label>
+              <label id="subCategoryField">Sub-category<select name="subCategory"></select></label>
         <label>Team<select name="team" required aria-describedby="teamFieldHint"></select><small class="field-hint" id="teamFieldHint">Teams come from the Team directory in the left navigation</small></label>
         <label>Owner<input name="owner" required maxlength="40" placeholder="Full name"></label>
         <label class="full-field">Objective<textarea name="objective" rows="3" required maxlength="180" placeholder="What measurable outcome will this project deliver?"></textarea></label>

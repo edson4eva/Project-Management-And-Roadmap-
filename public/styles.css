@@ -1358,3 +1358,20 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .release-count { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; margin: -3px -7px; color: var(--ink-soft); font: inherit; font-size: var(--fs-100); font-weight: 600; background: none; border: 1px solid transparent; border-radius: 99px; cursor: pointer; text-align: left; }
 .release-count:hover { color: var(--green); background: #fff; border-color: var(--green); }
 .release-count svg { width: 12px; flex: 0 0 auto; }
+
+/* --- The third grouping level: a sub-category inside a category ---------
+   Indented one step further than the category heading so the nesting reads at
+   a glance, and tinted a shade lighter rather than repeating the same band. */
+.project-subcategory-table-heading td { padding: 6px 14px 6px 54px !important; background: #fcfdfc; border-bottom: 1px solid var(--line-soft); }
+.project-subcategory-table-heading div { display: flex; align-items: center; gap: 7px; }
+.project-subcategory-table-heading svg { width: 11px; color: var(--muted); }
+.project-subcategory-table-heading strong { color: var(--ink-soft); font-size: var(--fs-100); font-weight: 700; }
+.project-subcategory-table-heading small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
+.project-subcategory-heading { display: flex; align-items: center; gap: 7px; margin: 9px 0 7px; padding-left: 22px; }
+.project-subcategory-heading svg { width: 11px; color: var(--muted); }
+.project-subcategory-heading strong { color: var(--ink-soft); font-size: var(--fs-100); font-weight: 700; }
+.project-subcategory-heading small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
+.timeline-subcategory-lane, .timeline-subcategory-lane .timeline-lane-heading { background: #fdfefd; }
+.timeline-subcategory-lane .timeline-lane-heading { padding-left: 48px; }
+.timeline-subcategory-lane .timeline-lane-heading span { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
+.fiscal-span { display: inline-block; padding: 2px 7px; color: var(--ink-soft); background: var(--canvas); border-radius: 99px; font-size: var(--fs-100); font-weight: 700; white-space: nowrap; }

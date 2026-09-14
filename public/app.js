@@ -78,6 +78,7 @@ function normalizeProjectAlignment(project) {
   project.scoring = Object.fromEntries(SCORE_FIELD_KEYS.map(key => [key, numberOrNull(scoring[key])]));
   project.releaseId = numberOrNull(project.releaseId);
   project.custom = project.custom && typeof project.custom === "object" ? project.custom : {};
+  project.subCategory = subCategoryOptionsFor(project.unit, project.subUnit).includes(project.subCategory) ? project.subCategory : "";
   return project;
 }
 
@@ -172,8 +173,13 @@ const resourceRoles = ["Product Owner", "Scrum Master", "Project Manager", "Deve
 const projectUnits = ["Unified Identity and Access Management", "Alberta Wallet and Credentials", "Alberta Payments", "CRA Income and Data Verification Services", "Web Services", "Platforms Operations"];
 // Units that have been renamed, so stored projects follow the rename.
 // Optional second level under a unit. A unit with no entry has no sub-categories.
+// Two grouping levels below the unit, as the roadmap deck itself is organised:
+// a CATEGORY (its own page in the deck) and a SUB-CATEGORY (a labelled row on
+// that page). The category level is stored under the long-standing key
+// "subUnit", so no existing record needs migrating; everything user-facing
+// calls it Category.
 const unitSubCategories = {
-  "Unified Identity and Access Management": ["Unified Messaging Service"],
+  "Unified Identity and Access Management": ["Verification", "Strategy and Operations", "Alberta.ca Account Features", "Unified Messaging Service"],
   "Alberta Payments": ["eServices"],
   "Web Services": ["Learning Management System"],
   "Platforms Operations": ["Privacy Portal"]
@@ -181,6 +187,36 @@ const unitSubCategories = {
 
 function subCategoriesFor(unit) {
   return unitSubCategories[unit] || [];
+}
+
+// Sub-categories belong to a unit AND a category, because the same label can
+// appear under more than one category - "Service Integration" is a row on both
+// the Verification and the Alberta.ca Account Features pages.
+const categorySubCategories = {
+  "Unified Identity and Access Management::Verification": [
+    "Sign-in / 2-Step Verification (Multifactor)",
+    "Banking Verification",
+    "Person Verification",
+    "Organizations Verification"
+  ],
+  "Unified Identity and Access Management::Strategy and Operations": [
+    "Office of the Auditor General (OAG) Response Plan",
+    "IAM Unification",
+    "Administration and Support"
+  ],
+  "Unified Identity and Access Management::Alberta.ca Account Features": [
+    "Design Improvements",
+    "Alberta.ca Account Branding",
+    "Service Integration"
+  ]
+};
+
+function subCategoryOptionsFor(unit, category) {
+  return categorySubCategories[`${unit}::${category}`] || [];
+}
+
+function hasSubCategories(unit, category) {
+  return subCategoryOptionsFor(unit, category).length > 0;
 }
 
 const legacyUnitAliases = {
@@ -381,6 +417,125 @@ let suppressNextBarClick = false;
 // The deck tracks Privacy Portal as one initiative broken into phases, so the
 // four separate phase-projects collapse into a single project holding them.
 // Runs over seed and stored data alike, and is idempotent.
+// ---------------------------------------------------------------------------
+// UIAM structure taken from the September 2025 Platforms Roadmap deck,
+// slides 7 to 12. Each timeline page (7, 9, 11) gives a category and its
+// labelled rows; the facing detail page (8, 10, 12) gives the initiative and
+// the per-deliverable descriptions.
+//
+// Every value below is transcribed from the deck. A project appears here only
+// if the deck places it on one of those pages, and a description is set only
+// where the deck actually writes one - the rest keep the initiative-level
+// description they already carry, because inventing a per-project one would be
+// making it up.
+// ---------------------------------------------------------------------------
+const UIAM_DECK_PAGES = {
+  "Verification": {
+    slide: 7,
+    initiative: "Unified Identity Access Management (UIAM)",
+    description: "The strategic vision is to unify the pre-existing IAM solutions available in the GoA enterprise to the Unified IAM platform to provide a consistent and streamlined user experience."
+  },
+  "Strategy and Operations": {
+    slide: 9,
+    initiative: "Unified Identity Access Management (UIAM)",
+    description: "The strategic vision is to unify the pre-existing IAM solutions available in the GoA enterprise to the Unified IAM platform to provide a consistent and streamlined user experience."
+  },
+  "Alberta.ca Account Features": {
+    slide: 11,
+    initiative: "Alberta.ca Account",
+    description: "The Alberta.ca Account Program is being expanded to include new identity documents for account verification, a way to manage and verify bank account information to receive government payments, a way for organizations to verify themselves. The system is receiving a rebrand to refresh its look and feel in alignment with the Mobile Wallet, as well as receive user experience improvements and security enhancements."
+  }
+};
+
+const UIAM_DECK_PROJECTS = [
+  // Slide 7 - UIAM - Verification
+  { name: "SMS MFA", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+    objective: "SMS Multi-Factor Authentication (MFA): Provides users with the ability to enable SMS-based MFA, which will send a text message to their verified phone number." },
+  { name: "TOTP MFA", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+    objective: "Time-based One-Time Password (TOTP) MFA: Provides users with the ability to enable TOTP MFA, which will work with standards-based authenticator apps including Google Authenticator, Microsoft Authenticator, LastPass, FreeOTP and others." },
+  { name: "SLO Enhancements", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+    objective: "Single Log Out (SLO) Enhancements: Ensures log out of all active sessions (e.g., when a user changes a password or initiates a password reset). Includes cross protocol support for Wallet and Privacy Portal." },
+  { name: "Remove username", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+    objective: "Remove Username: No longer support username sign in and will expect people to sign in with email only. This was a legacy MADI method that was carried to Unified IAM with the intent that email sign-in will be the standard at a later date." },
+  { name: "Compromised Account Recovery Feature", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)" },
+  { name: "Bank Verification Service Procurement", category: "Verification", subCategory: "Banking Verification",
+    objective: "Bank Verification Service: Will provide the ability to validate a bank account, including ownership of account." },
+  { name: "Service Integration - Banking Verification", category: "Verification", subCategory: "Banking Verification" },
+  { name: "Manage Bank Information Feature", category: "Verification", subCategory: "Banking Verification" },
+  { name: "ID Document Verification Service Procurement", category: "Verification", subCategory: "Person Verification",
+    objective: "Alternative Document ID verification: Will give users the ability to verify using other Identity documents (e.g. Passport, Indian Status Card, etc.) through Interact." },
+  { name: "Service Integration - Person Verification", category: "Verification", subCategory: "Person Verification" },
+  { name: "Interim DL or ID documents from MOVES", category: "Verification", subCategory: "Person Verification",
+    objective: "Interim DL / ID document: Will give users the ability to verify using the interim documents provided by the Alberta Registries from MOVES." },
+  { name: "PCTF Assessment", category: "Verification", subCategory: "Person Verification",
+    objective: "PCTF Assessment: Complete a Pan Canadian Trust Framework (PCTF) v1.5 assessment of Unified IAM." },
+  { name: "Corporate Registries", category: "Verification", subCategory: "Organizations Verification",
+    objective: "Corporate Registries: Provides businesses with the ability to verify their organization through an integration with the Corporate Registries System." },
+
+  // Slide 9 - UIAM - Strategy and Operations
+  { name: "OAG Plan Changes", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan",
+    objective: "OAG Plan: Planned product enhancements in response to the findings from the Auditor General, ACN Mask, Activation Code Timeout." },
+  { name: "Data analytics and reporting", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan",
+    objective: "Data Analytics and Reporting: Enhancements to tools in UIAM, and development of reporting outside of UIAM to increase the ability to report and correct data in UIAM." },
+  { name: "Onboarding Improvements", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan",
+    objective: "Onboarding improvements: Operational and technical changes needed to improve onboarding process, capture data necessary to meet OAG requirements." },
+  { name: "Onboarding RITM Enhancements", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan" },
+  { name: "Stakeholder Repository and Knowledge Base", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan" },
+  { name: "Performance Metrics Design", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan" },
+  { name: "Digital Credential Standards", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan" },
+  { name: "DTIAS", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan" },
+  { name: "UIAM Governance", category: "Strategy and Operations", subCategory: "Office of the Auditor General (OAG) Response Plan" },
+  { name: "Unification Plan", category: "Strategy and Operations", subCategory: "IAM Unification",
+    objective: "Unification Plan: Analysis and recommendations for how to remove identity brokers such as Keycloak and ADFS to meet auditing requirements of the OAG and improve data in the Privacy Portal. Outcomes include technical, policy, and budget recommendations." },
+  { name: "TRAVIS (OLS) Migration", category: "Strategy and Operations", subCategory: "IAM Unification",
+    objective: "TRAVIS (OLS) Migration: Migrate OLS users to support commercial carrier organizations accessing the new TRAVIS permit application." },
+  { name: "ROADS (EXTERN) Migration", category: "Strategy and Operations", subCategory: "IAM Unification",
+    objective: "ROADS (EXTERN) Migration: Migrate ROADS users from the EXTERN domain." },
+  { name: "Parks Migration", category: "Strategy and Operations", subCategory: "IAM Unification",
+    objective: "Parks Migration: Migrate Alberta Parks shop website users from Aspira." },
+  { name: "Operational Admin Tools", category: "Strategy and Operations", subCategory: "Administration and Support",
+    objective: "Operational Admin Tools: Improvement of admin tools in UIAM for Tier 1 and Tier 2 support, and ongoing operational needs." },
+  { name: "Chatbot POC", category: "Strategy and Operations", subCategory: "Administration and Support",
+    objective: "SearchAI Chatbot: Widget instance of SearchAI tool placed on Alberta.ca Account 'Get help' page to act as a chatbot and provide insights into questions being asked by users." },
+  { name: "Agentic AI for Contact Centre Pilot", category: "Strategy and Operations", subCategory: "Administration and Support",
+    objective: "Agentic AI: Introduction of Agentic AI to the Alberta.ca Account Contact Centre is expected to improved customer support." },
+
+  // Slide 11 - UIAM - Alberta.ca Account Features
+  { name: "Accessibility Improvements", category: "Alberta.ca Account Features", subCategory: "Design Improvements",
+    objective: "Accessibility Audit: Work underway conducting interviews with users who experience real-life accessibility issues to test how UIAM performs. Report will guide accessibility improvements for UIAM and other services in the GoA." },
+  { name: "Relying Party UX POC", category: "Alberta.ca Account Features", subCategory: "Design Improvements",
+    objective: "Relying Party UX POC: Enhancements to create a singular common control for how users interact with UIAM from relying parties. POC will test integration with the Alberta.ca Web Property." },
+  { name: "Organization Updates", category: "Alberta.ca Account Features", subCategory: "Design Improvements",
+    objective: "Organization updates: Improvements to the User Experience of joining and managing an organization within Alberta.ca Accounts for Organizations." },
+  { name: "Alberta.ca Account Promotional Campaign", category: "Alberta.ca Account Features", subCategory: "Alberta.ca Account Branding",
+    objective: "Alberta.ca Account Promotional Campaign: Promote Account verification ahead of the Mobile Wallet launch. Campaign includes a joint MFA awareness campaign, promotion of services available (Motor Vehicles), and community outreach." },
+  { name: "Design System Uplift", category: "Alberta.ca Account Features", subCategory: "Alberta.ca Account Branding",
+    objective: "Design System Uplift: Improvements to UIAM design resulting from the Design System Uplift project." },
+  { name: "Mobile Application Auth API", category: "Alberta.ca Account Features", subCategory: "Service Integration",
+    objective: "Wallet and Credentials Integration: Services needed to integrate the application into the UIAM experience to allow users to access their digital credentials." },
+  { name: "Common Payments Integration Planning and PoC", category: "Alberta.ca Account Features", subCategory: "Service Integration",
+    objective: "Common Payment Integration: Service to integrate Common Payments into the UIAM experience to enable to the storage of payments information at the identity level rather than at the service level." },
+  { name: "New OIDC Endpoint Service", category: "Alberta.ca Account Features", subCategory: "Service Integration",
+    objective: "OIDC Support: Develop a new OIDC Endpoint service to provide an alternative to SAML2 as well as support for unifying other IDP brokers." },
+  { name: "Access Management Research and POC", category: "Alberta.ca Account Features", subCategory: "Service Integration",
+    objective: "Access (Authorization) Management: Makes available the existing UIAM Role Base Access Controls to Relying Parties." }
+];
+
+// Idempotent: it matches on the project name, only ever fills the category,
+// sub-category and description, and never touches dates, status or anything
+// else already recorded.
+function applyUiamDeckStructure(list) {
+  const byName = new Map(UIAM_DECK_PROJECTS.map(entry => [entry.name, entry]));
+  list.forEach(project => {
+    const entry = byName.get(project.name);
+    if (!entry || project.unit !== "Unified Identity and Access Management") return;
+    project.subUnit = entry.category;
+    project.subCategory = entry.subCategory;
+    if (entry.objective) project.objective = entry.objective;
+  });
+  return list;
+}
+
 const LEGACY_PRIVACY_PORTAL = [
   "Phase 1.0 PIB - Personal Information Bank",
   "Phase 2.1 Unified Messaging Service",
@@ -691,9 +846,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)).map(normalizeProjectAlignment);
+    return applyUiamDeckStructure(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))).map(normalizeProjectAlignment);
   } catch {
-    return consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)).map(normalizeProjectAlignment);
+    return applyUiamDeckStructure(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))).map(normalizeProjectAlignment);
   }
 }
 
@@ -774,8 +929,18 @@ function populateProjectSubUnitOptions(unit, selected) {
   const select = elements.form.elements.subUnit;
   select.innerHTML = `<option value="">None</option>${options.map(option => `<option>${option}</option>`).join("")}`;
   select.value = options.includes(selected) ? selected : "";
-  // a unit with no sub-categories should not show an empty control
+  // a unit with no categories should not show an empty control
   document.querySelector("#subUnitField").hidden = options.length === 0;
+}
+
+// The sub-category list depends on the category, so it is repopulated whenever
+// the category changes and hidden when the chosen category has none.
+function populateProjectSubCategoryOptions(unit, category, selected) {
+  const options = subCategoryOptionsFor(unit, category);
+  const select = elements.form.elements.subCategory;
+  select.innerHTML = `<option value="">None</option>${options.map(option => `<option>${option}</option>`).join("")}`;
+  select.value = options.includes(selected) ? selected : "";
+  document.querySelector("#subCategoryField").hidden = options.length === 0;
 }
 
 function populateProjectTeamOptions(selected) {
@@ -1067,6 +1232,21 @@ function quarterBands(range, currentIndex = roadmapQuarter) {
   }).filter(band => band.days > 0);
 }
 
+// The deck labels its axis in fiscal quarters - Q4 FY24/25 for Jan to Mar 2025
+// and so on - so the app reports the same notation. Both are derived from the
+// project's own dates, so they can never drift from the timeline.
+function fiscalQuarterLabel(date) {
+  const year = getFiscalYear(date);
+  return `Q${fiscalQuarterOf(date) + 1} FY${String(year - 1).slice(-2)}/${String(year).slice(-2)}`;
+}
+
+function fiscalSpanLabel(project) {
+  if (!project.start || !project.end) return "Not dated";
+  const from = fiscalQuarterLabel(new Date(`${project.start}T12:00:00`));
+  const to = fiscalQuarterLabel(new Date(`${project.end}T12:00:00`));
+  return from === to ? from : `${from} - ${to}`;
+}
+
 function fiscalYearLabel(year) {
   return `FY${String(year).slice(-2)}`;
 }
@@ -1127,7 +1307,9 @@ function activeProjectScope() {
   if (statusFilter !== "all") parts.push({ label: "Status", value: statusFilterLabel() });
   if (teamFilter !== "all") parts.push({ label: "Team", value: teamFilter });
   if (unitFilter !== "all") {
-    parts.push({ label: "Unit", value: unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter });
+    parts.push({ label: "Unit", value: unitFilter.startsWith("sub2:")
+      ? unitFilter.slice(5).replaceAll("::", " / ")
+      : unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter });
   }
   if (ownerFilter !== "all") parts.push({ label: "Owner", value: ownerFilter });
   if (riskFilter !== "all") parts.push({ label: "Risk", value: riskFilter });
@@ -1440,6 +1622,7 @@ function projectRow(project, index) {
     <td><div class="table-progress"><div class="progress-track"><span style="width:${project.progress}%"></span></div><span>${project.progress}%</span></div></td>
     <td><div class="owner-cell"><span class="avatar">${initials(project.owner)}</span><span>${project.owner}</span></div></td>
     <td><time datetime="${project.end}">${formatDate(project.end, { month: "short", day: "numeric", year: "numeric" })}</time></td>
+    <td><span class="fiscal-span">${fiscalSpanLabel(project)}</span></td>
     <td><span class="risk-pill risk-${project.risk.toLowerCase()}">${project.risk}</span></td>
     <td><button class="icon-button subtle row-action open-project-page" data-id="${project.id}" type="button" aria-label="Open ${project.name} details">${iconMarkup("arrow-right")}</button></td>
   </tr>`;
@@ -2000,7 +2183,7 @@ const SPEC_SECTIONS = [
 ];
 const HISTORY_TRACKED_FIELDS = [
   ["name", "Name"], ["status", "Status"], ["progress", "Progress"], ["owner", "Owner"],
-  ["team", "Team"], ["unit", "Unit"], ["subUnit", "Sub-category"], ["start", "Start date"],
+  ["team", "Team"], ["unit", "Unit"], ["subUnit", "Category"], ["subCategory", "Sub-category"], ["start", "Start date"],
   ["end", "Target date"], ["milestone", "Milestone"], ["milestoneDate", "Milestone date"],
   ["risk", "Risk"], ["priority", "Priority"], ["approxCost", "Approx. cost"], ["releaseId", "Release"]
 ];
@@ -3081,7 +3264,9 @@ function renderProjectPage(projectId) {
     <div class="project-page-stats">
       <div><span>Owner</span><strong><i class="avatar">${initials(project.owner)}</i>${project.owner}</strong></div>
       <div><span>Unit</span><strong>${project.unit}</strong></div>
+      ${project.subUnit ? `<div><span>Category</span><strong>${project.subUnit}${project.subCategory ? ` / ${project.subCategory}` : ""}</strong></div>` : ""}
       <div><span>Timeline</span><strong>${formatDate(project.start)} - ${formatDate(project.end)}</strong></div>
+      <div><span>FY / quarter</span><strong>${fiscalSpanLabel(project)}</strong></div>
       <div><span>Priority</span><strong>${project.priority}</strong></div>
       <div><span>Risk level</span><strong class="risk-text-${project.risk.toLowerCase()}">${project.risk}</strong></div>
       <div><span>Approx. cost</span><strong>${formatCurrency(project.approxCost)}</strong></div>
@@ -3146,6 +3331,10 @@ function statusFilterLabel() {
 }
 
 function matchesUnitFilter(project) {
+  if (unitFilter.startsWith("sub2:")) {
+    const [unit, category, sub] = unitFilter.slice(5).split("::");
+    return project.unit === unit && project.subUnit === category && project.subCategory === sub;
+  }
   if (!unitFilter.startsWith("sub:")) return project.unit === unitFilter;
   const [unit, sub] = unitFilter.slice(4).split("::");
   return project.unit === unit && project.subUnit === sub;
@@ -3231,6 +3420,21 @@ function subGroupsFor(unit, unitProjects) {
   return groups;
 }
 
+// The level below a category. A category with no sub-categories returns one
+// unnamed group, so every caller can treat the structure the same way.
+function nestedGroupsFor(unit, category, items) {
+  const options = subCategoryOptionsFor(unit, category);
+  if (!options.length) return [{ subCategory: "", items }];
+  const groups = [];
+  const loose = items.filter(project => !project.subCategory);
+  if (loose.length) groups.push({ subCategory: "", items: loose });
+  options.forEach(sub => {
+    const list = items.filter(project => project.subCategory === sub);
+    if (list.length) groups.push({ subCategory: sub, items: list });
+  });
+  return groups;
+}
+
 function renderProjects() {
   const filtered = getFilteredProjects();
   // declared unit order, matching the roadmap and the unit mix card
@@ -3243,8 +3447,8 @@ function renderProjects() {
   const ordered = [...projectUnits, ...[...byUnit.keys()].filter(unit => !projectUnits.includes(unit))];
   const grouped = ordered.filter(unit => byUnit.has(unit)).map(unit => [unit, byUnit.get(unit)]);
   elements.projectCount.textContent = `(${filtered.length})`;
-  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="7"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="7"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${group.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("");
-  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${group.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}</section>`).join("");
+  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="8"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<tr class="project-subcategory-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nested.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("")}`).join("");
+  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<div class="project-subcategory-heading">${iconMarkup("corner-down-right")}<strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${nested.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}`).join("")}</section>`).join("");
   const empty = filtered.length === 0;
   elements.emptyState.classList.toggle("hidden", !empty);
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");
@@ -3269,7 +3473,11 @@ function populateTeamFilters() {
   document.querySelector("#reportTeam").value = reportTeam;
   const unitOptions = units.map(unit => {
     const subs = subCategoriesFor(unit).filter(sub => projects.some(project => project.unit === unit && project.subUnit === sub));
-    return `<option value="${unit}">${unit}</option>${subs.map(sub => `<option value="sub:${unit}::${sub}">&nbsp;&nbsp;&#8627; ${sub}</option>`).join("")}`;
+    return `<option value="${unit}">${unit}</option>` + subs.map(sub => {
+      const nested = subCategoryOptionsFor(unit, sub).filter(inner => projects.some(project => project.unit === unit && project.subUnit === sub && project.subCategory === inner));
+      return `<option value="sub:${unit}::${sub}">&nbsp;&nbsp;&#8627; ${sub}</option>`
+        + nested.map(inner => `<option value="sub2:${unit}::${sub}::${inner}">&nbsp;&nbsp;&nbsp;&nbsp;&#8627; ${inner}</option>`).join("");
+    }).join("");
   }).join("");
   const statusOptions = `<option value="all">All statuses</option>`
     + unitMixBands.map(band => `<option value="band:${band.key}">&nbsp;&nbsp;&#8627; ${band.label}</option>`).join("")
@@ -3284,7 +3492,9 @@ function populateTeamFilters() {
   document.querySelector("#riskFilter").innerHTML = `<option value="all">All risk levels</option>${risks.map(risk => `<option value="${risk}">${risk}</option>`).join("")}`;
   document.querySelector("#riskFilter").value = risks.includes(riskFilter) ? riskFilter : "all";
   document.querySelector("#unitFilter").innerHTML = `<option value="all">All units</option>${unitOptions}`;
-  const unitValues = ["all", ...units, ...units.flatMap(unit => subCategoriesFor(unit).map(sub => `sub:${unit}::${sub}`))];
+  const unitValues = ["all", ...units,
+    ...units.flatMap(unit => subCategoriesFor(unit).map(sub => `sub:${unit}::${sub}`)),
+    ...units.flatMap(unit => subCategoriesFor(unit).flatMap(sub => subCategoryOptionsFor(unit, sub).map(inner => `sub2:${unit}::${sub}::${inner}`)))];
   document.querySelector("#unitFilter").value = unitValues.includes(unitFilter) ? unitFilter : "all";
   const goals = roadmapStrategy.goals || [];
   const unlinked = projects.filter(project => !project.goalIds.length).length;
@@ -3691,7 +3901,7 @@ function projectsExportData() {
   };
 }
 
-const PROJECT_REGISTER_COLUMNS = ["Project", "Unit", "Sub-category", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
+const PROJECT_REGISTER_COLUMNS = ["Project", "Unit", "Category", "Sub-category", "FY / Quarter", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
 
 function projectRegisterRow(project) {
   return [project.name, project.unit, project.subUnit || "", project.team, project.owner, project.status, project.priority, project.risk,
@@ -3961,7 +4171,7 @@ function buildRoadmapExcel() {
   window.XLSX.utils.book_append_sheet(workbook, metrics, "Success Metrics");
 
   const initiatives = window.XLSX.utils.aoa_to_sheet([
-    ["Quarter", "Unit", "Sub-category", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
+    ["Quarter", "Unit", "Category", "Sub-category", "FY / Quarter", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
     ...data.lanes.flatMap(lane => lane.items.map(project => [data.quarter, lane.unit, project.subUnit || "", project.name, project.team, project.owner,
       project.status, project.progress / 100, project.start, project.end, project.milestone, project.milestoneDate]))
   ]);
@@ -4593,18 +4803,24 @@ function timelineLanesMarkup(entries, range, gridMarkup, todayPosition, noun, or
     : (first, second) => first.start.localeCompare(second.start);
   return entries.map(([unit, unitProjects]) => {
     const body = collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => {
-      const rows = group.items
-        .slice()
-        .sort(compare)
-        .map(project => {
-          const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
-          barIndex += 1;
-          return markup;
-        }).join("");
+      const nestedMarkup = nestedGroupsFor(unit, group.sub, group.items).map(nested => {
+        const rows = nested.items
+          .slice()
+          .sort(compare)
+          .map(project => {
+            const markup = timelineRowMarkup(project, range, gridMarkup, todayPosition, colors[barIndex % 4]);
+            barIndex += 1;
+            return markup;
+          }).join("");
+        const nestedHeading = nested.subCategory
+          ? `<div class="timeline-lane timeline-sublane timeline-subcategory-lane"><div class="timeline-lane-heading"><span>${nested.subCategory}</span><small>${nested.items.length}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>`
+          : "";
+        return nestedHeading + rows;
+      }).join("");
       const heading = group.sub
         ? `<div class="timeline-lane timeline-sublane"><div class="timeline-lane-heading"><span>${group.sub}</span><small>${group.items.length}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>`
         : "";
-      return heading + rows;
+      return heading + nestedMarkup;
     }).join("");
     const count = `${unitProjects.length} ${unitProjects.length === 1 ? noun : `${noun}s`}`;
     return `<div class="timeline-lane"><div class="timeline-lane-heading">${unitToggleMarkup(unit)}<span>${unit}</span><small>${count}</small></div><div class="timeline-lane-track">${gridMarkup}</div></div>${body}`;
@@ -4915,6 +5131,7 @@ function openModal() {
   projectTeamTouched = false;
   populateProjectUnitOptions(elements.form.elements.unit.value);
   populateProjectSubUnitOptions(elements.form.elements.unit.value, "");
+  populateProjectSubCategoryOptions(elements.form.elements.unit.value, elements.form.elements.subUnit.value, "");
   renderPhaseRows([]);
   renderAlignmentFields(null);
   populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
@@ -4935,6 +5152,7 @@ function openEditProjectModal(projectId) {
   projectTeamTouched = true;
   populateProjectUnitOptions(project.unit);
   populateProjectSubUnitOptions(project.unit, project.subUnit);
+  populateProjectSubCategoryOptions(project.unit, project.subUnit, project.subCategory);
   renderPhaseRows(project.phases);
   renderAlignmentFields(project);
   document.querySelectorAll(".phase-row-focused").forEach(row => row.classList.remove("phase-row-focused"));
@@ -5209,7 +5427,7 @@ function submitProject(event) {
     return;
   }
   elements.form.elements.dependsOn.setCustomValidity("");
-  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: subCategoryOptionsFor(data.unit, data.subUnit).includes(data.subCategory) ? data.subCategory : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -5457,6 +5675,9 @@ document.querySelector("#roadmapScoreModel").addEventListener("change", event =>
   saveScoreModel();
   renderRoadmap();
   if (elements.modal.open) renderProjectScoreFields(projectBeingEdited ? projects.find(item => item.id === projectBeingEdited)?.scoring : readScoreFields());
+});
+elements.form.elements.subUnit.addEventListener("change", event => {
+  populateProjectSubCategoryOptions(elements.form.elements.unit.value, event.target.value, "");
 });
 document.querySelector("#projectScoreFields").addEventListener("input", updateScorePreview);
 // --- board drag and drop: a drop is a status edit -------------------------
@@ -5769,6 +5990,7 @@ document.addEventListener("click", event => {
 elements.form.elements.team.addEventListener("change", () => { projectTeamTouched = true; });
 elements.form.elements.unit.addEventListener("change", event => {
   populateProjectSubUnitOptions(event.target.value, elements.form.elements.subUnit.value);
+  populateProjectSubCategoryOptions(event.target.value, elements.form.elements.subUnit.value, elements.form.elements.subCategory.value);
   if (!projectTeamTouched) populateProjectTeamOptions(defaultTeamForUnit(event.target.value));
 });
 elements.form.elements.end.addEventListener("input", () => elements.form.elements.end.setCustomValidity(""));
@@ -5788,6 +6010,7 @@ initTimelineViewports();
 reconcileTeamProjectIds();
 populateProjectUnitOptions(projectUnits[0]);
 populateProjectSubUnitOptions(projectUnits[0], "");
+populateProjectSubCategoryOptions(projectUnits[0], "", "");
 populateProjectTeamOptions(defaultTeamForUnit(elements.form.elements.unit.value));
 renderAll();
 // A shared link only ever narrows what is shown; with no link the app opens
