@@ -75,6 +75,7 @@ function normalizeProjectAlignment(project) {
   project.goalIds = Array.isArray(project.goalIds) ? [...new Set(project.goalIds.map(Number).filter(Number.isFinite))] : [];
   project.dependsOn = Array.isArray(project.dependsOn) ? [...new Set(project.dependsOn.map(Number).filter(Number.isFinite))] : [];
   project.scoring = Object.fromEntries(SCORE_FIELD_KEYS.map(key => [key, numberOrNull(scoring[key])]));
+  project.releaseId = numberOrNull(project.releaseId);
   return project;
 }
 
@@ -358,6 +359,15 @@ function saveRoadmapStrategy() {
 
 let roadmapStrategy = loadRoadmapStrategy();
 let scoreModel = loadScoreModel();
+let ideas = loadIdeas();
+let feedbackEntries = loadFeedback();
+let ideaBeingEdited = null;
+let ideaAwaitingPromotion = null;
+let releases = loadReleases();
+let releaseBeingEdited = null;
+let draggedIdeaId = null;
+let draggedProjectId = null;
+let suppressNextBarClick = false;
 // The deck tracks Privacy Portal as one initiative broken into phases, so the
 // four separate phase-projects collapse into a single project holding them.
 // Runs over seed and stored data alike, and is idempotent.
@@ -464,6 +474,7 @@ const elements = {
   timeline: document.querySelector("#timeline"),
   projectTimeline: document.querySelector("#projectTimeline"),
   timelineLayout: document.querySelector("#timelineLayout"),
+  boardLayout: document.querySelector("#boardLayout"),
   roadmapSummary: document.querySelector("#roadmapSummary"),
   milestoneList: document.querySelector("#milestoneList"),
   reportKpis: document.querySelector("#reportKpis"),
@@ -1360,6 +1371,16 @@ function projectAlignmentSection(project) {
         ${linkRow(blocking, "Nothing depends on this initiative.", item => new Date(`${project.end}T12:00:00`) > new Date(`${item.start}T12:00:00`))}
       </article>
       <article class="alignment-card">
+        <h3>${iconMarkup("package")}Release</h3>
+        ${(() => {
+          const release = project.releaseId ? releaseById(project.releaseId) : null;
+          if (!release) return `<p class="alignment-empty">Not part of a release.</p>`;
+          const late = release.date && project.end > release.date;
+          return `<p class="alignment-release"><strong>${release.name}</strong><small>${release.date ? formatDate(release.date, { month: "short", day: "numeric", year: "numeric" }) : "No date set"} - ${release.status}</small></p>
+            ${late ? `<p class="alignment-warning">${iconMarkup("triangle-alert")}This initiative ends ${formatDate(project.end)}, after the release date.</p>` : ""}`;
+        })()}
+      </article>
+      <article class="alignment-card">
         <h3>${iconMarkup("gauge")}Priority score</h3>
         ${score === null
           ? `<p class="alignment-empty">Not scored on ${model.label}. ${model.fields.map(field => field.label).join(", ")} are needed.</p>`
@@ -1369,6 +1390,473 @@ function projectAlignmentSection(project) {
       </article>
     </div>
   </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// Idea intake and customer feedback.
+// Both are captured by hand and stored per browser; nothing is seeded and
+// nothing is inferred. An idea becomes an initiative only when someone
+// promotes it, and the initiative it created is recorded on the idea.
+// ---------------------------------------------------------------------------
+const IDEA_STATUSES = ["New", "Reviewing", "Accepted", "Declined"];
+const FEEDBACK_SOURCES = ["Albertan", "Ministry partner", "Service desk", "Staff", "Research session", "Other"];
+
+function loadIdeas() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.ideas));
+    return Array.isArray(saved) ? saved.map(normalizeIdea) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeIdea(idea) {
+  return {
+    id: Number(idea.id) || Date.now(),
+    title: String(idea.title || "").trim(),
+    problem: String(idea.problem || "").trim(),
+    requester: String(idea.requester || "").trim(),
+    source: FEEDBACK_SOURCES.includes(idea.source) ? idea.source : "Other",
+    status: IDEA_STATUSES.includes(idea.status) ? idea.status : "New",
+    createdAt: idea.createdAt || AS_OF_ISO,
+    promotedProjectId: Number(idea.promotedProjectId) || null
+  };
+}
+
+function saveIdeas() {
+  localStorage.setItem(STORAGE.ideas, JSON.stringify(ideas));
+}
+
+function loadFeedback() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.feedback));
+    return Array.isArray(saved) ? saved.map(normalizeFeedback) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeFeedback(entry) {
+  return {
+    id: Number(entry.id) || Date.now(),
+    ideaId: Number(entry.ideaId) || null,
+    projectId: Number(entry.projectId) || null,
+    source: FEEDBACK_SOURCES.includes(entry.source) ? entry.source : "Other",
+    requester: String(entry.requester || "").trim(),
+    verbatim: String(entry.verbatim || "").trim(),
+    createdAt: entry.createdAt || AS_OF_ISO
+  };
+}
+
+function saveFeedback() {
+  localStorage.setItem(STORAGE.feedback, JSON.stringify(feedbackEntries));
+}
+
+function feedbackForIdea(ideaId) {
+  return feedbackEntries.filter(entry => entry.ideaId === Number(ideaId));
+}
+
+function feedbackForProject(projectId) {
+  const id = Number(projectId);
+  const promoted = ideas.filter(idea => idea.promotedProjectId === id).map(idea => idea.id);
+  return feedbackEntries.filter(entry => entry.projectId === id || promoted.includes(entry.ideaId));
+}
+
+function ideaById(ideaId) {
+  return ideas.find(idea => idea.id === Number(ideaId)) || null;
+}
+
+function moveIdeaToStatus(ideaId, status) {
+  const idea = ideaById(ideaId);
+  if (!idea || !IDEA_STATUSES.includes(status) || idea.status === status) return false;
+  idea.status = status;
+  saveIdeas();
+  renderIdeas();
+  showToast(`"${idea.title}" moved to ${status}`);
+  return true;
+}
+
+function renderIdeas() {
+  const counts = IDEA_STATUSES.map(status => ideas.filter(idea => idea.status === status).length);
+  const promoted = ideas.filter(idea => idea.promotedProjectId).length;
+  document.querySelector("#ideaSummary").innerHTML = [
+    ["Captured", ideas.length, "lightbulb"],
+    ["Under review", counts[IDEA_STATUSES.indexOf("Reviewing")], "search"],
+    ["Accepted", counts[IDEA_STATUSES.indexOf("Accepted")], "circle-check"],
+    ["Promoted to initiatives", promoted, "route"],
+    ["Feedback records", feedbackEntries.length, "message-square-quote"]
+  ].map(item => `<div class="idea-summary-item"><i>${iconMarkup(item[2])}</i><div><strong>${item[1]}</strong><span>${item[0]}</span></div></div>`).join("");
+
+  document.querySelector("#ideaBoard").innerHTML = IDEA_STATUSES.map((status, index) => {
+    const column = ideas.filter(idea => idea.status === status);
+    return `<div class="idea-column" data-idea-status="${status}">
+      <div class="idea-column-head"><strong>${status}</strong><span>${counts[index]}</span></div>
+      <div class="idea-column-body">${column.length
+        ? column.map(idea => {
+            const count = feedbackForIdea(idea.id).length;
+            const project = idea.promotedProjectId ? projects.find(item => item.id === idea.promotedProjectId) : null;
+            return `<article class="idea-card" draggable="true" data-idea-id="${idea.id}">
+              <div class="idea-card-top"><strong>${idea.title}</strong><span class="idea-source">${idea.source}</span></div>
+              <p>${idea.problem || "No problem statement recorded."}</p>
+              <div class="idea-card-meta">
+                <span>${iconMarkup("user-round")}${idea.requester || "No requester recorded"}</span>
+                <button class="idea-feedback-count" data-open-idea="${idea.id}" type="button">${iconMarkup("message-square-quote")}${count} ${count === 1 ? "record" : "records"}</button>
+              </div>
+              ${project ? `<button class="idea-promoted" data-open-project="${project.id}" type="button">${iconMarkup("route")}Delivered as ${project.name}</button>` : ""}
+              <div class="idea-card-actions">
+                <button class="text-button" data-open-idea="${idea.id}" type="button">Open</button>
+                ${project ? "" : `<button class="text-button" data-promote-idea="${idea.id}" type="button">Promote to initiative</button>`}
+                <button class="text-button danger-text" data-delete-idea="${idea.id}" type="button">Delete</button>
+              </div>
+            </article>`;
+          }).join("")
+        : `<p class="idea-column-empty">Nothing here yet</p>`}</div>
+    </div>`;
+  }).join("");
+
+  const note = document.querySelector("#ideaNote");
+  note.innerHTML = `${iconMarkup(ideas.length ? "info" : "lightbulb")}<span>${ideas.length
+    ? `Drag a card between columns to change its status. Promoting an accepted idea opens the project intake form filled in from the idea, and records the initiative it became.`
+    : `No ideas captured yet. Use "Capture idea" to record the first one - this board only ever shows what has been entered here.`}</span>`;
+  refreshIcons();
+}
+
+function openIdeaModal(ideaId = null) {
+  const idea = ideaId ? ideaById(ideaId) : null;
+  ideaBeingEdited = idea ? idea.id : null;
+  const form = document.querySelector("#ideaForm");
+  form.reset();
+  form.elements.source.innerHTML = FEEDBACK_SOURCES.map(source => `<option>${source}</option>`).join("");
+  form.elements.status.innerHTML = IDEA_STATUSES.map(status => `<option>${status}</option>`).join("");
+  if (idea) {
+    form.elements.title.value = idea.title;
+    form.elements.problem.value = idea.problem;
+    form.elements.requester.value = idea.requester;
+    form.elements.source.value = idea.source;
+    form.elements.status.value = idea.status;
+  }
+  document.querySelector("#ideaModalTitle").textContent = idea ? `Edit ${idea.title}` : "Capture an idea";
+  document.querySelector("#ideaSaveButton span").textContent = idea ? "Save idea" : "Capture idea";
+  renderIdeaFeedback(idea);
+  document.querySelector("#ideaModal").showModal();
+  refreshIcons();
+}
+
+function renderIdeaFeedback(idea) {
+  const host = document.querySelector("#ideaFeedbackList");
+  const section = document.querySelector("#ideaFeedbackSection");
+  section.classList.toggle("hidden", !idea);
+  if (!idea) return;
+  const records = feedbackForIdea(idea.id);
+  document.querySelector("#ideaFeedbackCount").textContent = records.length;
+  host.innerHTML = records.length
+    ? records.map(entry => `<article class="feedback-record">
+        <div><strong>${entry.requester || "Anonymous"}</strong><span class="idea-source">${entry.source}</span></div>
+        <p>${entry.verbatim}</p>
+        <div class="feedback-record-foot"><small>${formatDate(entry.createdAt)}</small><button class="text-button danger-text" data-delete-feedback="${entry.id}" type="button">Remove</button></div>
+      </article>`).join("")
+    : `<p class="alignment-empty">No feedback recorded against this idea yet.</p>`;
+  document.querySelector("#feedbackSource").innerHTML = FEEDBACK_SOURCES.map(source => `<option>${source}</option>`).join("");
+  refreshIcons();
+}
+
+function submitIdea(event) {
+  event.preventDefault();
+  const form = document.querySelector("#ideaForm");
+  const data = Object.fromEntries(new FormData(form));
+  if (!data.title.trim()) return;
+  const existing = ideaBeingEdited ? ideaById(ideaBeingEdited) : null;
+  const record = normalizeIdea({
+    id: existing ? existing.id : Date.now(),
+    title: data.title,
+    problem: data.problem,
+    requester: data.requester,
+    source: data.source,
+    status: data.status,
+    createdAt: existing ? existing.createdAt : AS_OF_ISO,
+    promotedProjectId: existing ? existing.promotedProjectId : null
+  });
+  if (existing) Object.assign(existing, record);
+  else ideas.push(record);
+  saveIdeas();
+  document.querySelector("#ideaModal").close();
+  ideaBeingEdited = null;
+  renderIdeas();
+  showToast(existing ? `${record.title} updated` : `${record.title} captured`);
+}
+
+function addFeedbackRecord() {
+  const idea = ideaBeingEdited ? ideaById(ideaBeingEdited) : null;
+  if (!idea) return;
+  const verbatim = document.querySelector("#feedbackVerbatim").value.trim();
+  if (!verbatim) {
+    document.querySelector("#feedbackVerbatim").setCustomValidity("Record what was actually said or asked for.");
+    document.querySelector("#feedbackVerbatim").reportValidity();
+    return;
+  }
+  document.querySelector("#feedbackVerbatim").setCustomValidity("");
+  feedbackEntries.push(normalizeFeedback({
+    id: Date.now(),
+    ideaId: idea.id,
+    source: document.querySelector("#feedbackSource").value,
+    requester: document.querySelector("#feedbackRequester").value,
+    verbatim,
+    createdAt: AS_OF_ISO
+  }));
+  saveFeedback();
+  document.querySelector("#feedbackVerbatim").value = "";
+  document.querySelector("#feedbackRequester").value = "";
+  renderIdeaFeedback(idea);
+  renderIdeas();
+  showToast("Feedback recorded");
+}
+
+function deleteFeedbackRecord(feedbackId) {
+  feedbackEntries = feedbackEntries.filter(entry => entry.id !== Number(feedbackId));
+  saveFeedback();
+  renderIdeaFeedback(ideaBeingEdited ? ideaById(ideaBeingEdited) : null);
+  renderIdeas();
+}
+
+function deleteIdea(ideaId) {
+  const idea = ideaById(ideaId);
+  if (!idea) return;
+  ideas = ideas.filter(item => item.id !== idea.id);
+  feedbackEntries = feedbackEntries.filter(entry => entry.ideaId !== idea.id);
+  saveIdeas();
+  saveFeedback();
+  renderIdeas();
+  showToast(`${idea.title} removed`);
+}
+
+// Promotion carries across only what the idea itself holds - its title and
+// problem statement. Everything else is left for the intake form to collect.
+function promoteIdea(ideaId) {
+  const idea = ideaById(ideaId);
+  if (!idea) return;
+  ideaAwaitingPromotion = idea.id;
+  switchView("projects");
+  openModal();
+  elements.form.elements.name.value = idea.title;
+  elements.form.elements.objective.value = idea.problem || idea.title;
+  document.querySelector("#projectModalKicker").textContent = "Promoted from an idea";
+  document.querySelector("#projectModalTitle").textContent = `Promote "${idea.title}" to an initiative`;
+  showToast("Fill in the delivery details to promote this idea");
+}
+
+// ---------------------------------------------------------------------------
+// Board layout and direct manipulation of the timeline.
+// Both are editing paths, not new data: a drop writes a status the user chose,
+// and a drag writes dates computed from where the bar was released.
+// ---------------------------------------------------------------------------
+
+function renderProjectBoard(filtered) {
+  const host = document.querySelector("#boardLayout");
+  host.innerHTML = projectStatuses.map(status => {
+    const column = filtered.filter(project => project.status === status);
+    const band = unitMixBands.find(entry => entry.statuses.includes(status));
+    return `<div class="board-column" data-board-status="${status}" style="--band-color:${band ? band.color : "var(--line)"}">
+      <div class="board-column-head"><strong>${status}</strong><span>${column.length}</span></div>
+      <div class="board-column-body">${column.length
+        ? column.map(project => {
+            const score = projectScore(project);
+            return `<article class="board-card" draggable="true" data-board-project="${project.id}">
+              <div class="board-card-top"><button class="board-card-name" data-project-page="${project.id}" type="button">${project.name}</button><span class="risk-dot risk-${project.risk.toLowerCase()}" title="${project.risk} risk"></span></div>
+              <p>${project.unit}${project.subUnit ? ` / ${project.subUnit}` : ""}</p>
+              <div class="board-card-progress"><span style="width:${project.progress}%"></span></div>
+              <div class="board-card-foot">
+                <span><i class="avatar">${initials(project.owner)}</i>${project.owner}</span>
+                <span>${project.progress}%</span>
+              </div>
+              <div class="board-card-foot">
+                <small>${formatDate(project.end)}</small>
+                ${score === null ? `<small class="board-unscored">unscored</small>` : `<small class="board-score">score ${score}</small>`}
+              </div>
+            </article>`;
+          }).join("")
+        : `<p class="idea-column-empty">None</p>`}</div>
+    </div>`;
+  }).join("");
+  const note = document.querySelector("#boardNote");
+  if (note) note.innerHTML = `${iconMarkup("info")}<span>Drag a card into another column to change that project's status. Columns are the nine portfolio statuses, and a card appears in exactly the column its record says it is in.</span>`;
+}
+
+function moveProjectToStatus(projectId, status) {
+  const project = projects.find(item => item.id === Number(projectId));
+  if (!project || !projectStatuses.includes(status) || project.status === status) return false;
+  const previous = project.status;
+  project.status = status;
+  saveProjects();
+  renderAll();
+  showToast(`${project.name}: ${previous} to ${status}`);
+  return true;
+}
+
+// Moving a bar shifts the whole initiative - its dates, its milestone and any
+// phases - by the same number of days, so nothing inside it drifts.
+function applyProjectDateShift(projectId, dayDelta) {
+  const project = projects.find(item => item.id === Number(projectId));
+  if (!project || !dayDelta) return false;
+  const shift = iso => shiftIso(iso, dayDelta);
+  project.start = shift(project.start);
+  project.end = shift(project.end);
+  if (project.milestoneDate) project.milestoneDate = shift(project.milestoneDate);
+  (project.phases || []).forEach(phase => {
+    if (phase.start) phase.start = shift(phase.start);
+    if (phase.end) phase.end = shift(phase.end);
+  });
+  saveProjects();
+  return true;
+}
+
+// Dragging an edge moves one end only, never past the other, and keeps the
+// milestone inside the window it is supposed to sit in.
+function applyProjectEdgeResize(projectId, edge, dayDelta) {
+  const project = projects.find(item => item.id === Number(projectId));
+  if (!project || !dayDelta) return false;
+  if (edge === "start") {
+    const proposed = shiftIso(project.start, dayDelta);
+    project.start = proposed >= project.end ? shiftIso(project.end, -1) : proposed;
+  } else {
+    const proposed = shiftIso(project.end, dayDelta);
+    project.end = proposed <= project.start ? shiftIso(project.start, 1) : proposed;
+  }
+  if (project.milestoneDate < project.start) project.milestoneDate = project.start;
+  if (project.milestoneDate > project.end) project.milestoneDate = project.end;
+  saveProjects();
+  return true;
+}
+
+function shiftIso(iso, days) {
+  const date = new Date(`${iso}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
+// Release planning.
+// A release is a date with a name. What it contains is not stored on the
+// release - it is read back from the initiatives that point at it, so a
+// release can never disagree with the project records.
+// ---------------------------------------------------------------------------
+const RELEASE_STATUSES = ["Planned", "Committed", "Shipped", "Cancelled"];
+
+function loadReleases() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.releases));
+    return Array.isArray(saved) ? saved.map(normalizeRelease) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeRelease(release) {
+  return {
+    id: Number(release.id) || Date.now(),
+    name: String(release.name || "").trim(),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(release.date) ? release.date : "",
+    status: RELEASE_STATUSES.includes(release.status) ? release.status : "Planned",
+    notes: String(release.notes || "").trim()
+  };
+}
+
+function saveReleases() {
+  localStorage.setItem(STORAGE.releases, JSON.stringify(releases));
+}
+
+function releaseById(releaseId) {
+  return releases.find(release => release.id === Number(releaseId)) || null;
+}
+
+function releaseContents(releaseId, list = projects) {
+  return list.filter(project => project.releaseId === Number(releaseId));
+}
+
+// An initiative that finishes after the release it is in cannot ship in it.
+function releaseRisks(release, list = projects) {
+  if (!release.date) return [];
+  return releaseContents(release.id, list).filter(project => project.end > release.date);
+}
+
+function sortedReleases() {
+  return releases.slice().sort((first, second) => (first.date || "9999").localeCompare(second.date || "9999"));
+}
+
+function renderReleases() {
+  const host = document.querySelector("#releaseList");
+  const ordered = sortedReleases();
+  document.querySelector("#releaseCount").textContent = ordered.length;
+  host.innerHTML = ordered.length
+    ? ordered.map(release => {
+        const contents = releaseContents(release.id);
+        const risks = releaseRisks(release);
+        return `<article class="release-card${risks.length ? " release-at-risk" : ""}">
+          <div class="release-card-top">
+            <div><strong>${release.name}</strong><small>${release.date ? formatDate(release.date, { month: "short", day: "numeric", year: "numeric" }) : "No date set"}</small></div>
+            <span class="release-status release-${slug(release.status)}">${release.status}</span>
+          </div>
+          ${release.notes ? `<p>${release.notes}</p>` : ""}
+          <div class="release-contents">${contents.length
+            ? contents.map(project => `<button class="release-item${release.date && project.end > release.date ? " release-item-late" : ""}" data-open-project="${project.id}" type="button"><span class="status-pill status-${slug(project.status)}">${project.status}</span><span><strong>${project.name}</strong><small>ends ${formatDate(project.end)}</small></span></button>`).join("")
+            : `<p class="alignment-empty">No initiative is assigned to this release yet.</p>`}</div>
+          <div class="release-card-foot">
+            <span>${iconMarkup(risks.length ? "triangle-alert" : "package")}${contents.length} ${contents.length === 1 ? "initiative" : "initiatives"}${risks.length ? ` - ${risks.length} ${risks.length === 1 ? "finishes" : "finish"} after this date` : ""}</span>
+            <span class="release-card-actions"><button class="text-button" data-edit-release="${release.id}" type="button">Edit</button><button class="text-button danger-text" data-delete-release="${release.id}" type="button">Delete</button></span>
+          </div>
+        </article>`;
+      }).join("")
+    : `<p class="alignment-empty">No releases defined yet. Add one to group initiatives into a shipping date, then pick it on an initiative under Strategy alignment.</p>`;
+  refreshIcons();
+}
+
+function openReleaseModal(releaseId = null) {
+  const release = releaseId ? releaseById(releaseId) : null;
+  releaseBeingEdited = release ? release.id : null;
+  const form = document.querySelector("#releaseForm");
+  form.reset();
+  form.elements.status.innerHTML = RELEASE_STATUSES.map(status => `<option>${status}</option>`).join("");
+  if (release) {
+    form.elements.name.value = release.name;
+    form.elements.date.value = release.date;
+    form.elements.status.value = release.status;
+    form.elements.notes.value = release.notes;
+  }
+  document.querySelector("#releaseModalTitle").textContent = release ? `Edit ${release.name}` : "Add a release";
+  document.querySelector("#releaseSaveButton span").textContent = release ? "Save release" : "Add release";
+  document.querySelector("#releaseModal").showModal();
+  refreshIcons();
+}
+
+function submitRelease(event) {
+  event.preventDefault();
+  const form = document.querySelector("#releaseForm");
+  const data = Object.fromEntries(new FormData(form));
+  if (!data.name.trim()) return;
+  const existing = releaseBeingEdited ? releaseById(releaseBeingEdited) : null;
+  const record = normalizeRelease({ id: existing ? existing.id : Date.now(), ...data });
+  if (existing) Object.assign(existing, record);
+  else releases.push(record);
+  saveReleases();
+  document.querySelector("#releaseModal").close();
+  releaseBeingEdited = null;
+  renderAll();
+  showToast(existing ? `${record.name} updated` : `${record.name} added`);
+}
+
+// Deleting a release unassigns the initiatives in it rather than leaving them
+// pointing at something that no longer exists.
+function deleteRelease(releaseId) {
+  const release = releaseById(releaseId);
+  if (!release) return;
+  const freed = releaseContents(release.id);
+  freed.forEach(project => { project.releaseId = null; });
+  releases = releases.filter(item => item.id !== release.id);
+  saveReleases();
+  if (freed.length) saveProjects();
+  renderAll();
+  showToast(freed.length
+    ? `${release.name} deleted - ${freed.length} ${freed.length === 1 ? "initiative" : "initiatives"} unassigned`
+    : `${release.name} deleted`);
 }
 
 function renderProjectPage(projectId) {
@@ -1557,7 +2045,10 @@ function renderProjects() {
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");
   elements.cardLayout.classList.toggle("hidden", empty || activeLayout !== "cards");
   elements.timelineLayout.classList.toggle("hidden", empty || activeLayout !== "timeline");
+  elements.boardLayout.classList.toggle("hidden", empty || activeLayout !== "board");
+  document.querySelector("#boardNote").classList.toggle("hidden", empty || activeLayout !== "board");
   if (activeLayout === "timeline" && !empty) renderProjectTimeline(grouped);
+  if (activeLayout === "board" && !empty) renderProjectBoard(filtered);
   refreshIcons();
 }
 
@@ -2901,8 +3392,24 @@ function renderProjectTimeline(grouped) {
 
   elements.projectTimeline.innerHTML = `
     ${timelineResizerMarkup("project")}
-    <div class="timeline-header"><div class="timeline-project-heading"><span>Project</span><small>${fiscalYearLabel(selectedFiscalYear)}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width) - var(--timeline-gutter)) * ${todayPosition / 100})">Today</span>`}</div>
+    <div class="timeline-header"><div class="timeline-project-heading"><span>Project</span><small>${fiscalYearLabel(selectedFiscalYear)}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width) - var(--timeline-gutter)) * ${todayPosition / 100})">Today</span>`}${releaseMarkersMarkup(range)}</div>
     ${lanes || `<p class="timeline-empty">No projects match the current filters.</p>`}`;
+}
+
+// Release markers are placed from the release's own date, and only when that
+// date falls inside the horizon on screen.
+function releaseMarkersMarkup(range) {
+  return sortedReleases()
+    .filter(release => release.date && release.status !== "Cancelled")
+    .map(release => {
+      const date = new Date(`${release.date}T12:00:00`);
+      if (date < range.start || date > range.end) return "";
+      const position = (date - range.start) / range.duration;
+      const contents = releaseContents(release.id).length;
+      const risks = releaseRisks(release).length;
+      return `<span class="timeline-release-flag${risks ? " release-flag-risk" : ""}" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width) - var(--timeline-gutter)) * ${position})" title="${release.name} - ${release.date}, ${contents} ${contents === 1 ? "initiative" : "initiatives"}${risks ? `, ${risks} finishing after this date` : ""}">${release.name}</span>`;
+    })
+    .join("");
 }
 
 function renderRoadmap() {
@@ -2925,7 +3432,7 @@ function renderRoadmap() {
 
   elements.timeline.innerHTML = `
     ${timelineResizerMarkup("initiative")}
-    <div class="timeline-header"><div class="timeline-project-heading"><span>Initiative</span><small>${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width) - var(--timeline-gutter)) * ${todayPosition / 100})">Today</span>`}</div>
+    <div class="timeline-header"><div class="timeline-project-heading"><span>Initiative</span><small>${fiscalYearLabel(selectedFiscalYear)} · Apr ${selectedFiscalYear - 1} - Mar ${selectedFiscalYear}</small></div><div class="timeline-header-scale"><div class="timeline-quarters" style="grid-template-columns:${bands.map(band => `${band.days}fr`).join(" ")}">${bands.map(band => `<div class="timeline-quarter${band.current ? " current" : ""}"><strong>Q${band.quarter}</strong><small>${band.months}</small></div>`).join("")}</div><div class="timeline-months" style="grid-template-columns:${columns}">${range.periods.map(period => `<div class="timeline-month">${period.label}</div>`).join("")}</div></div>${todayPosition === null ? "" : `<span class="timeline-today-flag" style="left:calc(var(--timeline-label-width) + (100% - var(--timeline-label-width) - var(--timeline-gutter)) * ${todayPosition / 100})">Today</span>`}${releaseMarkersMarkup(range)}</div>
     ${laneMarkup || `<p class="timeline-empty">No initiatives fall inside this horizon.</p>`}`;
 
   const nearing = visible.filter(project => project.progress >= 75).length;
@@ -2942,6 +3449,7 @@ function renderRoadmap() {
   renderRoadmapContention();
   renderRoadmapDependencies();
   renderRoadmapPrioritization();
+  renderReleases();
   renderRoadmapStrategy();
   renderRoadmapScopeStrip();
   renderQuarterPicker();
@@ -3040,6 +3548,7 @@ function switchView(view) {
   document.querySelectorAll(".view").forEach(item => item.classList.remove("active"));
   if (view === "projects") document.querySelector("#projectsView").classList.add("active");
   else if (view === "roadmap") { document.querySelector("#roadmapView").classList.add("active"); renderRoadmap(); }
+  else if (view === "ideas") { document.querySelector("#ideasView").classList.add("active"); renderIdeas(); }
   else if (view === "reports") { document.querySelector("#reportsView").classList.add("active"); renderReports(); }
   else if (view === "team") { document.querySelector("#teamsView").classList.add("active"); renderTeams(); }
   else if (view === "resources") { document.querySelector("#resourcesView").classList.add("active"); renderResources(); }
@@ -3057,6 +3566,7 @@ function updateWorkspaceContext(view) {
     projects: ["layout-dashboard", "Delivery workspace", "Projects", "Search projects, owners, teams...", "New project"],
     "project-detail": ["briefcase-business", "Project workspace", "Project details", "Search projects, owners, teams...", "New project"],
     roadmap: ["route", "Strategy workspace", "Roadmap", "Search initiatives, milestones, teams...", "New initiative"],
+    ideas: ["lightbulb", "Intake workspace", "Ideas", "Search ideas and feedback...", "New project"],
     reports: ["chart-no-axes-combined", "Intelligence workspace", "Reports", "Search reports and portfolio data...", "New project"],
     team: ["users", "Management workspace", "Team", "Search people and teams...", "New team"],
     resources: ["boxes", "Management workspace", "Resources", "Search resources...", "New resource"]
@@ -3133,9 +3643,17 @@ function updateScorePreview() {
   preview.classList.add("scored");
 }
 
+function renderProjectReleaseOptions(project) {
+  const select = document.querySelector("#projectRelease");
+  select.innerHTML = `<option value="">Not part of a release</option>`
+    + sortedReleases().map(release => `<option value="${release.id}"${project && project.releaseId === release.id ? " selected" : ""}>${release.name}${release.date ? ` - ${formatDate(release.date)}` : ""}</option>`).join("");
+  select.disabled = releases.length === 0;
+}
+
 function renderAlignmentFields(project = null) {
   renderProjectGoalChecks(project ? project.goalIds : []);
   renderProjectDependsOptions(project);
+  renderProjectReleaseOptions(project);
   renderProjectScoreFields(project ? project.scoring : {});
 }
 
@@ -3144,7 +3662,9 @@ function readAlignmentFields(existing) {
   const dependsOn = [...document.querySelector("#projectDependsOn").selectedOptions].map(option => Number(option.value)).filter(Number.isFinite);
   // Keep numbers captured under a different model rather than dropping them.
   const scoring = { ...(existing?.scoring || {}), ...readScoreFields() };
-  return { goalIds, dependsOn, scoring };
+  const releaseValue = document.querySelector("#projectRelease").value;
+  const releaseId = releaseValue && releaseById(releaseValue) ? Number(releaseValue) : null;
+  return { goalIds, dependsOn, scoring, releaseId };
 }
 
 function openModal() {
@@ -3453,13 +3973,22 @@ function submitProject(event) {
     return;
   }
   elements.form.elements.dependsOn.setCustomValidity("");
-  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
   teamDirectory.forEach(team => { team.projectIds = team.projectIds.filter(id => id !== savedProject.id); });
   const assignedTeam = teamDirectory.find(team => team.name === savedProject.team);
   if (assignedTeam && !assignedTeam.projectIds.includes(savedProject.id)) assignedTeam.projectIds.push(savedProject.id);
+  if (ideaAwaitingPromotion) {
+    const idea = ideaById(ideaAwaitingPromotion);
+    if (idea) {
+      idea.promotedProjectId = savedProject.id;
+      idea.status = "Accepted";
+      saveIdeas();
+    }
+    ideaAwaitingPromotion = null;
+  }
   saveProjects();
   saveTeams();
   elements.modal.close();
@@ -3488,6 +4017,7 @@ function renderAll() {
   renderReports();
   renderTeams();
   renderResources();
+  renderIdeas();
   refreshIcons();
 }
 
@@ -3495,6 +4025,7 @@ document.addEventListener("click", event => {
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) switchView(viewButton.dataset.view);
   const projectButton = event.target.closest(".open-project");
+  if (projectButton && suppressNextBarClick) { suppressNextBarClick = false; return; }
   if (projectButton) renderDrawer(projectButton.dataset.id);
   const projectPageButton = event.target.closest(".open-project-page, .project-select-row");
   if (projectPageButton) renderProjectPage(projectPageButton.dataset.id || projectPageButton.dataset.projectPage);
@@ -3508,6 +4039,18 @@ document.addEventListener("click", event => {
   if (openProjectButton) renderProjectPage(openProjectButton.dataset.openProject);
   const goalScopeButton = event.target.closest("[data-goal-scope]");
   if (goalScopeButton) applyGoalScope(goalScopeButton.dataset.goalScope);
+  const editReleaseButton = event.target.closest("[data-edit-release]");
+  if (editReleaseButton) openReleaseModal(editReleaseButton.dataset.editRelease);
+  const deleteReleaseButton = event.target.closest("[data-delete-release]");
+  if (deleteReleaseButton) deleteRelease(deleteReleaseButton.dataset.deleteRelease);
+  const openIdeaButton = event.target.closest("[data-open-idea]");
+  if (openIdeaButton) openIdeaModal(openIdeaButton.dataset.openIdea);
+  const promoteIdeaButton = event.target.closest("[data-promote-idea]");
+  if (promoteIdeaButton) promoteIdea(promoteIdeaButton.dataset.promoteIdea);
+  const deleteIdeaButton = event.target.closest("[data-delete-idea]");
+  if (deleteIdeaButton) deleteIdea(deleteIdeaButton.dataset.deleteIdea);
+  const deleteFeedbackButton = event.target.closest("[data-delete-feedback]");
+  if (deleteFeedbackButton) deleteFeedbackRecord(deleteFeedbackButton.dataset.deleteFeedback);
   const tabButton = event.target.closest("[data-project-tab]");
   if (tabButton) renderDrawer(tabButton.dataset.id, tabButton.dataset.projectTab);
   const workstreamButton = event.target.closest("[data-workstream]");
@@ -3642,6 +4185,141 @@ document.querySelector("#roadmapScoreModel").addEventListener("change", event =>
   if (elements.modal.open) renderProjectScoreFields(projectBeingEdited ? projects.find(item => item.id === projectBeingEdited)?.scoring : readScoreFields());
 });
 document.querySelector("#projectScoreFields").addEventListener("input", updateScorePreview);
+// --- board drag and drop: a drop is a status edit -------------------------
+const projectBoard = document.querySelector("#boardLayout");
+projectBoard.addEventListener("dragstart", event => {
+  const card = event.target.closest("[data-board-project]");
+  if (!card) return;
+  draggedProjectId = Number(card.dataset.boardProject);
+  card.classList.add("dragging");
+  if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", card.dataset.boardProject); }
+});
+projectBoard.addEventListener("dragend", () => {
+  draggedProjectId = null;
+  document.querySelectorAll(".board-card.dragging").forEach(card => card.classList.remove("dragging"));
+  document.querySelectorAll(".board-column.drop-target").forEach(column => column.classList.remove("drop-target"));
+});
+projectBoard.addEventListener("dragover", event => {
+  const column = event.target.closest("[data-board-status]");
+  if (!column) return;
+  event.preventDefault();
+  document.querySelectorAll(".board-column.drop-target").forEach(item => item.classList.remove("drop-target"));
+  column.classList.add("drop-target");
+});
+projectBoard.addEventListener("drop", event => {
+  const column = event.target.closest("[data-board-status]");
+  if (!column) return;
+  event.preventDefault();
+  const projectId = draggedProjectId ?? Number(event.dataTransfer?.getData("text/plain"));
+  draggedProjectId = null;
+  if (projectId) moveProjectToStatus(projectId, column.dataset.boardStatus);
+});
+
+// --- dragging a roadmap bar rewrites its dates ---------------------------
+// The conversion from pixels to days uses the track's own width and the
+// horizon currently displayed, so a drag lands on the day it looks like.
+let timelineDrag = null;
+
+function timelineDayDelta(event) {
+  if (!timelineDrag || !timelineDrag.pxPerDay) return 0;
+  return Math.round((event.clientX - timelineDrag.startX) / timelineDrag.pxPerDay);
+}
+
+document.querySelector("#roadmapScroll").addEventListener("pointerdown", event => {
+  const bar = event.target.closest(".timeline-bar");
+  if (!bar || event.button !== 0) return;
+  const row = bar.closest(".timeline-row");
+  const track = bar.closest(".timeline-track");
+  if (!row || !track) return;
+  const range = timelineRange();
+  const width = track.getBoundingClientRect().width;
+  const days = Math.max(1, Math.round(range.duration / DAY));
+  const barBox = bar.getBoundingClientRect();
+  const grip = 10;
+  const edge = event.clientX - barBox.left <= grip ? "start" : (barBox.right - event.clientX <= grip ? "end" : null);
+  timelineDrag = {
+    projectId: Number(bar.dataset.id),
+    startX: event.clientX,
+    pxPerDay: width / days,
+    edge,
+    bar,
+    moved: false
+  };
+  bar.classList.add("dragging");
+  bar.setPointerCapture?.(event.pointerId);
+});
+
+document.addEventListener("pointermove", event => {
+  if (!timelineDrag) return;
+  const delta = timelineDayDelta(event);
+  if (delta) timelineDrag.moved = true;
+  timelineDrag.bar.style.setProperty("--drag-offset", `${delta * timelineDrag.pxPerDay}px`);
+  timelineDrag.bar.dataset.dragEdge = timelineDrag.edge || "move";
+});
+
+document.addEventListener("pointerup", event => {
+  if (!timelineDrag) return;
+  const { projectId, edge, bar } = timelineDrag;
+  const delta = timelineDayDelta(event);
+  bar.classList.remove("dragging");
+  bar.style.removeProperty("--drag-offset");
+  delete bar.dataset.dragEdge;
+  timelineDrag = null;
+  if (!delta) return;
+  suppressNextBarClick = true;
+  window.setTimeout(() => { suppressNextBarClick = false; }, 0);
+  const project = projects.find(item => item.id === projectId);
+  if (!project) return;
+  if (edge) {
+    applyProjectEdgeResize(projectId, edge, delta);
+    showToast(`${project.name}: ${edge === "start" ? "start" : "target"} date now ${formatDate(edge === "start" ? project.start : project.end)}`);
+  } else {
+    applyProjectDateShift(projectId, delta);
+    showToast(`${project.name} moved ${Math.abs(delta)} ${Math.abs(delta) === 1 ? "day" : "days"} ${delta > 0 ? "later" : "earlier"} - now ${formatDate(project.start)} to ${formatDate(project.end)}`);
+  }
+  renderAll();
+});
+
+document.querySelector("#addReleaseButton").addEventListener("click", () => openReleaseModal());
+document.querySelector("#releaseForm").addEventListener("submit", submitRelease);
+document.querySelector("#closeReleaseModal").addEventListener("click", () => { document.querySelector("#releaseModal").close(); releaseBeingEdited = null; });
+document.querySelector("#cancelReleaseModal").addEventListener("click", () => { document.querySelector("#releaseModal").close(); releaseBeingEdited = null; });
+document.querySelector("#captureIdeaButton").addEventListener("click", () => openIdeaModal());
+document.querySelector("#ideaForm").addEventListener("submit", submitIdea);
+document.querySelector("#closeIdeaModal").addEventListener("click", () => { document.querySelector("#ideaModal").close(); ideaBeingEdited = null; });
+document.querySelector("#cancelIdeaModal").addEventListener("click", () => { document.querySelector("#ideaModal").close(); ideaBeingEdited = null; });
+document.querySelector("#addFeedbackButton").addEventListener("click", addFeedbackRecord);
+
+// Dragging a card between columns is the same operation as editing its status,
+// so both paths go through moveIdeaToStatus.
+const ideaBoard = document.querySelector("#ideaBoard");
+ideaBoard.addEventListener("dragstart", event => {
+  const card = event.target.closest("[data-idea-id]");
+  if (!card) return;
+  draggedIdeaId = Number(card.dataset.ideaId);
+  card.classList.add("dragging");
+  if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", card.dataset.ideaId); }
+});
+ideaBoard.addEventListener("dragend", () => {
+  draggedIdeaId = null;
+  document.querySelectorAll(".idea-card.dragging").forEach(card => card.classList.remove("dragging"));
+  document.querySelectorAll(".idea-column.drop-target").forEach(column => column.classList.remove("drop-target"));
+});
+ideaBoard.addEventListener("dragover", event => {
+  const column = event.target.closest("[data-idea-status]");
+  if (!column) return;
+  event.preventDefault();
+  document.querySelectorAll(".idea-column.drop-target").forEach(item => item.classList.remove("drop-target"));
+  column.classList.add("drop-target");
+});
+ideaBoard.addEventListener("drop", event => {
+  const column = event.target.closest("[data-idea-status]");
+  if (!column) return;
+  event.preventDefault();
+  const ideaId = draggedIdeaId ?? Number(event.dataTransfer?.getData("text/plain"));
+  draggedIdeaId = null;
+  if (ideaId) moveIdeaToStatus(ideaId, column.dataset.ideaStatus);
+});
 document.querySelector("#roadmapTeamFilter").addEventListener("change", event => { teamFilter = event.target.value; populateTeamFilters(); renderProjects(); renderRoadmap(); });
 document.querySelector("#projectFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));
 document.querySelector("#roadmapFiscalYear").addEventListener("change", event => setFiscalYear(event.target.value));

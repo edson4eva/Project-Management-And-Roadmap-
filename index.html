@@ -49,6 +49,9 @@
         <button class="nav-item" data-view="roadmap" type="button">
           <i data-lucide="route"></i><span class="nav-copy"><strong>Roadmap</strong><small>Direction and timing</small></span>
         </button>
+        <button class="nav-item" data-view="ideas" type="button">
+          <i data-lucide="lightbulb"></i><span class="nav-copy"><strong>Ideas</strong><small>Intake and feedback</small></span>
+        </button>
         <p class="nav-label">Intelligence</p>
         <button class="nav-item" data-view="reports" type="button">
           <i data-lucide="chart-no-axes-combined"></i><span class="nav-copy"><strong>Reports</strong><small>Performance and risk</small></span>
@@ -177,6 +180,7 @@
                   <button class="active" data-layout="table" type="button" aria-label="Table view"><i data-lucide="list"></i></button>
                   <button data-layout="cards" type="button" aria-label="Card view"><i data-lucide="layout-grid"></i></button>
                   <button data-layout="timeline" type="button" aria-label="Timeline view"><i data-lucide="gantt-chart"></i></button>
+                <button data-layout="board" type="button" aria-label="Board view"><i data-lucide="columns-3"></i></button>
                 </div>
               </div>
             </div>
@@ -188,6 +192,8 @@
               </table>
             </div>
             <div class="project-card-grid hidden" id="cardLayout"></div>
+          <section class="project-board hidden" id="boardLayout" aria-label="Project board"></section>
+          <p class="dependency-note board-note hidden" id="boardNote"></p>
             <section class="roadmap-panel project-timeline-panel hidden" id="timelineLayout" aria-label="Project timeline">
               <div class="roadmap-toolbar">
                 <div class="roadmap-filters">
@@ -310,6 +316,16 @@
               <div id="dependencyLinks"></div>
               <p class="dependency-note" id="dependencyNote"></p>
             </article>
+            <article class="panel release-panel">
+              <div class="panel-heading">
+                <div><span class="section-kicker">Release planning</span><h2>What ships when</h2></div>
+                <span class="panel-heading-actions"><span class="count-badge" id="releaseCount">0</span><button class="secondary-button" id="addReleaseButton" type="button"><i data-lucide="plus"></i>Add release</button></span>
+              </div>
+              <div id="releaseList"></div>
+            </article>
+          </div>
+
+          <div class="roadmap-bottom-grid">
             <article class="panel priority-panel">
               <div class="panel-heading">
                 <div><span class="section-kicker">Prioritization</span><h2>Highest scoring first</h2></div>
@@ -320,6 +336,22 @@
               <p class="dependency-note" id="priorityNote"></p>
             </article>
           </div>
+        </section>
+
+        <section class="view ideas-view" id="ideasView" aria-labelledby="ideasTitle">
+          <div class="page-heading">
+            <div>
+              <div class="view-identity"><span class="view-identity-icon"><i data-lucide="lightbulb"></i></span><span><strong>Ideas</strong><small>Intake workspace</small></span></div>
+              <h1 id="ideasTitle">Idea intake and feedback</h1>
+              <p class="heading-copy">Capture requests before they are commitments, record who asked and what they said, and promote the ones worth delivering.</p>
+            </div>
+            <div class="heading-actions">
+              <button class="primary-button" id="captureIdeaButton" type="button"><i data-lucide="plus"></i>Capture idea</button>
+            </div>
+          </div>
+          <div class="idea-summary" id="ideaSummary"></div>
+          <p class="dependency-note" id="ideaNote"></p>
+          <div class="idea-board" id="ideaBoard"></div>
         </section>
 
         <section class="view reports-view" id="reportsView" aria-labelledby="reportsTitle">
@@ -459,6 +491,50 @@
     </form>
   </dialog>
 
+  <dialog id="releaseModal" class="project-modal">
+    <form method="dialog" id="releaseForm">
+      <div class="modal-header">
+        <div><span class="section-kicker">Release planning</span><h2 id="releaseModalTitle">Add a release</h2></div>
+        <button class="icon-button" id="closeReleaseModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form-grid">
+        <label class="full-field">Release name<input name="name" required maxlength="60" placeholder="e.g. Spring 2026 platform release"></label>
+        <label>Release date<input name="date" type="date"></label>
+        <label>Status<select name="status"></select></label>
+        <label class="full-field">Notes<textarea name="notes" rows="2" maxlength="200" placeholder="What this release is for"></textarea></label>
+      </div>
+      <p class="score-preview">Initiatives are added to a release from the initiative itself, under Strategy alignment. This form never assigns work on its own.</p>
+      <div class="modal-footer"><button class="text-button" id="cancelReleaseModal" type="button">Cancel</button><button class="primary-button" id="releaseSaveButton" type="submit"><i data-lucide="plus"></i><span>Add release</span></button></div>
+    </form>
+  </dialog>
+
+  <dialog id="ideaModal" class="project-modal">
+    <form method="dialog" id="ideaForm">
+      <div class="modal-header">
+        <div><span class="section-kicker">Idea intake</span><h2 id="ideaModalTitle">Capture an idea</h2></div>
+        <button class="icon-button" id="closeIdeaModal" type="button" aria-label="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form-grid">
+        <label class="full-field">Idea<input name="title" required maxlength="80" placeholder="What is being asked for"></label>
+        <label class="full-field">Problem it solves<textarea name="problem" rows="3" maxlength="240" placeholder="Whose problem, and what changes if it is solved"></textarea></label>
+        <label>Requested by<input name="requester" maxlength="60" placeholder="Person or ministry"></label>
+        <label>Source<select name="source"></select></label>
+        <label>Status<select name="status"></select></label>
+      </div>
+      <div class="idea-feedback-section hidden" id="ideaFeedbackSection">
+        <div class="section-heading-row"><div><span class="section-kicker">Customer feedback</span><h3>What people actually said</h3></div><span class="detail-count" id="ideaFeedbackCount">0</span></div>
+        <div id="ideaFeedbackList"></div>
+        <div class="feedback-add">
+          <label>Who<input id="feedbackRequester" maxlength="60" placeholder="Person or ministry"></label>
+          <label>Source<select id="feedbackSource"></select></label>
+          <label class="full-field">Verbatim<textarea id="feedbackVerbatim" rows="2" maxlength="300" placeholder="Record it in their words, not a summary"></textarea></label>
+          <button class="secondary-button" id="addFeedbackButton" type="button"><i data-lucide="plus"></i>Add feedback</button>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="text-button" id="cancelIdeaModal" type="button">Cancel</button><button class="primary-button" id="ideaSaveButton" type="submit"><i data-lucide="plus"></i><span>Capture idea</span></button></div>
+    </form>
+  </dialog>
+
   <dialog id="projectModal" class="project-modal">
     <form method="dialog" id="projectForm">
       <div class="modal-header">
@@ -501,6 +577,10 @@
           <span class="alignment-label">Depends on <small>this initiative cannot finish until these do</small></span>
           <select name="dependsOn" id="projectDependsOn" multiple size="6" aria-describedby="dependsOnHint"></select>
           <small class="field-hint" id="dependsOnHint">Ctrl-click or Cmd-click to select more than one, or to clear a selection</small>
+        </div>
+        <div class="full-field alignment-field">
+          <span class="alignment-label">Release <small>the shipping date this initiative is part of</small></span>
+          <select name="releaseId" id="projectRelease"></select>
         </div>
         <div class="full-field alignment-field">
           <span class="alignment-label">Prioritization <small id="projectScoreModelName"></small></span>
