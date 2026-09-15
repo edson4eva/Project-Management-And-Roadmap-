@@ -915,7 +915,7 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .project-subunit-heading small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
 .timeline-sublane { background: #fbfcfb; }
 .timeline-sublane .timeline-lane-heading { padding-left: 30px; background: #fbfcfb; }
-.timeline-sublane .timeline-lane-heading span { color: var(--ink-soft); font-size: var(--fs-100); font-weight: 700; letter-spacing: .02em; text-transform: none; }
+.timeline-sublane .timeline-lane-heading span { color: var(--ink); font-size: var(--fs-200); font-weight: 800; letter-spacing: .02em; text-transform: none; }
 
 /* expand / collapse a unit section */
 .section-collapse { display: grid; width: 18px; height: 18px; flex: 0 0 auto; place-items: center; padding: 0; color: var(--ink-soft); font-family: "Manrope", system-ui, sans-serif; font-size: 13px; font-weight: 800; line-height: 1; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-xs); cursor: pointer; transition: background .15s ease, border-color .15s ease; }
@@ -1489,3 +1489,26 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
    so it reads as one continuous marker down the page. */
 .timeline-section-rows { position: relative; }
 .timeline-srow .today-line { opacity: .85; }
+
+/* The category band is a deck page title, so it reads as a heading: bold,
+   full ink, and set off from the unit lane above it. */
+.timeline-lane.timeline-sublane { background: #eef2ef; border-top: 1px solid var(--line); }
+.timeline-lane.timeline-sublane .timeline-lane-heading { background: #eef2ef; }
+.project-subunit-table-heading strong, .project-subunit-heading strong { color: var(--ink); font-size: var(--fs-200); font-weight: 800; }
+
+/* The category band is the deck's page title, so it takes the display face
+   used for headings rather than the body font, which is what makes it read as
+   a title above its sections. */
+.timeline-lane.timeline-sublane .timeline-lane-heading span,
+.project-subunit-table-heading strong,
+.project-subunit-heading strong {
+  font-family: "Manrope", sans-serif;
+  font-size: var(--fs-300);
+  font-weight: 800;
+  letter-spacing: -.005em;
+}
+
+/* The nesting arrow was small enough to read as punctuation; at this size it
+   reads as the indent marker it is. */
+.project-subunit-table-heading svg, .project-subunit-heading svg { width: 16px; height: 16px; color: var(--green); stroke-width: 2.4; }
+.project-subcategory-table-heading svg, .project-subcategory-heading svg { width: 14px; height: 14px; color: var(--ink-soft); stroke-width: 2.4; }

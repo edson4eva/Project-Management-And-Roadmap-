@@ -179,7 +179,7 @@ const projectUnits = ["Unified Identity and Access Management", "Alberta Wallet 
 // "subUnit", so no existing record needs migrating; everything user-facing
 // calls it Category.
 const unitSubCategories = {
-  "Unified Identity and Access Management": ["Verification", "Strategy and Operations", "Alberta.ca Account Features", "Unified Messaging Service"],
+  "Unified Identity and Access Management": ["UIAM - Verification", "Strategy and Operations", "Alberta.ca Account Features", "Unified Messaging Service"],
   "Alberta Payments": ["eServices"],
   "Web Services": ["Learning Management System"],
   "Platforms Operations": ["Privacy Portal"]
@@ -193,7 +193,7 @@ function subCategoriesFor(unit) {
 // appear under more than one category - "Service Integration" is a row on both
 // the Verification and the Alberta.ca Account Features pages.
 const categorySubCategories = {
-  "Unified Identity and Access Management::Verification": [
+  "Unified Identity and Access Management::UIAM - Verification": [
     "Sign-in / 2-Step Verification (Multifactor)",
     "Banking Verification",
     "Person Verification",
@@ -218,6 +218,12 @@ function subCategoryOptionsFor(unit, category) {
 function hasSubCategories(unit, category) {
   return subCategoryOptionsFor(unit, category).length > 0;
 }
+
+// Categories renamed after they were first stored. Keyed by unit, so the same
+// label under a different unit is left alone.
+const legacyCategoryAliases = {
+  "Unified Identity and Access Management": { Verification: "UIAM - Verification" }
+};
 
 const legacyUnitAliases = {
   "Alberta Mobile Wallet": "Alberta Wallet and Credentials",
@@ -441,7 +447,7 @@ let suppressNextBarClick = false;
 // making it up.
 // ---------------------------------------------------------------------------
 const UIAM_DECK_PAGES = {
-  "Verification": {
+  "UIAM - Verification": {
     slide: 7,
     initiative: "Unified Identity Access Management (UIAM)",
     description: "The strategic vision is to unify the pre-existing IAM solutions available in the GoA enterprise to the Unified IAM platform to provide a consistent and streamlined user experience."
@@ -460,27 +466,27 @@ const UIAM_DECK_PAGES = {
 
 const UIAM_DECK_PROJECTS = [
   // Slide 7 - UIAM - Verification
-  { name: "SMS MFA", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+  { name: "SMS MFA", category: "UIAM - Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
     objective: "SMS Multi-Factor Authentication (MFA): Provides users with the ability to enable SMS-based MFA, which will send a text message to their verified phone number." },
-  { name: "TOTP MFA", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+  { name: "TOTP MFA", category: "UIAM - Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
     objective: "Time-based One-Time Password (TOTP) MFA: Provides users with the ability to enable TOTP MFA, which will work with standards-based authenticator apps including Google Authenticator, Microsoft Authenticator, LastPass, FreeOTP and others." },
-  { name: "SLO Enhancements", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+  { name: "SLO Enhancements", category: "UIAM - Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
     objective: "Single Log Out (SLO) Enhancements: Ensures log out of all active sessions (e.g., when a user changes a password or initiates a password reset). Includes cross protocol support for Wallet and Privacy Portal." },
-  { name: "Remove username", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
+  { name: "Remove username", category: "UIAM - Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)",
     objective: "Remove Username: No longer support username sign in and will expect people to sign in with email only. This was a legacy MADI method that was carried to Unified IAM with the intent that email sign-in will be the standard at a later date." },
-  { name: "Compromised Account Recovery Feature", category: "Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)" },
-  { name: "Bank Verification Service Procurement", category: "Verification", subCategory: "Banking Verification",
+  { name: "Compromised Account Recovery Feature", category: "UIAM - Verification", subCategory: "Sign-in / 2-Step Verification (Multifactor)" },
+  { name: "Bank Verification Service Procurement", category: "UIAM - Verification", subCategory: "Banking Verification",
     objective: "Bank Verification Service: Will provide the ability to validate a bank account, including ownership of account." },
-  { name: "Service Integration - Banking Verification", category: "Verification", subCategory: "Banking Verification" },
-  { name: "Manage Bank Information Feature", category: "Verification", subCategory: "Banking Verification" },
-  { name: "ID Document Verification Service Procurement", category: "Verification", subCategory: "Person Verification",
+  { name: "Service Integration - Banking Verification", category: "UIAM - Verification", subCategory: "Banking Verification" },
+  { name: "Manage Bank Information Feature", category: "UIAM - Verification", subCategory: "Banking Verification" },
+  { name: "ID Document Verification Service Procurement", category: "UIAM - Verification", subCategory: "Person Verification",
     objective: "Alternative Document ID verification: Will give users the ability to verify using other Identity documents (e.g. Passport, Indian Status Card, etc.) through Interact." },
-  { name: "Service Integration - Person Verification", category: "Verification", subCategory: "Person Verification" },
-  { name: "Interim DL or ID documents from MOVES", category: "Verification", subCategory: "Person Verification",
+  { name: "Service Integration - Person Verification", category: "UIAM - Verification", subCategory: "Person Verification" },
+  { name: "Interim DL or ID documents from MOVES", category: "UIAM - Verification", subCategory: "Person Verification",
     objective: "Interim DL / ID document: Will give users the ability to verify using the interim documents provided by the Alberta Registries from MOVES." },
-  { name: "PCTF Assessment", category: "Verification", subCategory: "Person Verification",
+  { name: "PCTF Assessment", category: "UIAM - Verification", subCategory: "Person Verification",
     objective: "PCTF Assessment: Complete a Pan Canadian Trust Framework (PCTF) v1.5 assessment of Unified IAM." },
-  { name: "Corporate Registries", category: "Verification", subCategory: "Organizations Verification",
+  { name: "Corporate Registries", category: "UIAM - Verification", subCategory: "Organizations Verification",
     objective: "Corporate Registries: Provides businesses with the ability to verify their organization through an integration with the Corporate Registries System." },
 
   // Slide 9 - UIAM - Strategy and Operations
@@ -869,6 +875,9 @@ function normalizeProjectUnit(project) {
   const aliased = legacyUnitAliases[project.unit] || project.unit;
   const [aliasUnit, aliasSub] = aliased.split("::");
   const unit = projectUnits.includes(aliasUnit) ? aliasUnit : projectUnits[0];
+  // A renamed category is mapped before it is validated below, otherwise a
+  // record stored under the old name would be cleared instead of renamed.
+  if (legacyCategoryAliases[unit]?.[project.subUnit]) project.subUnit = legacyCategoryAliases[unit][project.subUnit];
   const team = directoryTeamNames().includes(project.team) ? project.team : defaultTeamForUnit(unit);
   const phases = Array.isArray(project.phases)
     ? project.phases
