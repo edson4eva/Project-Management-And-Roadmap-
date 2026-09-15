@@ -241,7 +241,7 @@ const legacyUnitAliases = {
 };
 
 const unitTeamAssignments = { "Unified Identity and Access Management": "Team 1", "Alberta Wallet and Credentials": "Team 5", "Alberta Payments": "Team 7", "CRA Income and Data Verification Services": "Team 8", "Web Services": "Team 9", "Platforms Operations": "Team 10" };
-const projectTemplateColumns = ["Project Name", "Team", "Unit", "Owner", "Objective", "Start Date", "Target Date", "Status", "Progress (%)", "Priority", "Risk Level", "Approx. Cost in dollars", "Schedule Variance (days)", "Contributors", "Milestone Name", "Milestone Date"];
+const projectTemplateColumns = ["Project Name", "Team", "Branch Unit", "Owner", "Objective", "Start Date", "Target Date", "Status", "Progress (%)", "Priority", "Risk Level", "Approx. Cost in dollars", "Schedule Variance (days)", "Contributors", "Milestone Name", "Milestone Date"];
 const projectStatuses = ["Planned", "On track", "At risk", "Off track", "Completed", "In-flight", "Next", "Later", "Pause"];
 const statusGroups = {
   healthy: ["On track", "In-flight"],
@@ -1116,7 +1116,7 @@ async function buildProjectIntakeTemplate() {
   for (let row = 2; row <= 1000; row += 1) {
     intake.getCell(`A${row}`).dataValidation = textValidation("Project Name", 60);
     intake.getCell(`B${row}`).dataValidation = listValidation(directoryTeamNames(), "Team");
-    intake.getCell(`C${row}`).dataValidation = listValidation(projectUnits, "Unit");
+    intake.getCell(`C${row}`).dataValidation = listValidation(projectUnits, "Branch Unit");
     intake.getCell(`D${row}`).dataValidation = textValidation("Owner", 40);
     intake.getCell(`E${row}`).dataValidation = textValidation("Objective", 180);
     ["F", "G"].forEach(column => { intake.getCell(`${column}${row}`).numFmt = "mm/dd/yyyy"; intake.getCell(`${column}${row}`).dataValidation = dateValidation(column === "F" ? "Start Date" : "Target Date"); });
@@ -1372,9 +1372,12 @@ function activeProjectScope() {
   if (statusFilter !== "all") parts.push({ label: "Status", value: statusFilterLabel() });
   if (teamFilter !== "all") parts.push({ label: "Team", value: teamFilter });
   if (unitFilter !== "all") {
-    parts.push({ label: "Unit", value: unitFilter.startsWith("sub2:")
-      ? unitFilter.slice(5).replaceAll("::", " / ")
-      : unitFilter.startsWith("sub:") ? unitFilter.slice(4).replace("::", " / ") : unitFilter });
+    // The one control filters three levels, so the strip says which one.
+    parts.push(unitFilter.startsWith("sub2:")
+      ? { label: "Category", value: unitFilter.slice(5).split("::").slice(1).join(" / ") }
+      : unitFilter.startsWith("sub:")
+        ? { label: "Unit", value: unitFilter.slice(4).split("::")[1] }
+        : { label: "Branch Unit", value: unitFilter });
   }
   if (ownerFilter !== "all") parts.push({ label: "Owner", value: ownerFilter });
   if (riskFilter !== "all") parts.push({ label: "Risk", value: riskFilter });
@@ -1697,7 +1700,7 @@ function projectCard(project, index) {
   return `<article class="project-card open-project-page" data-id="${project.id}" tabindex="0" role="button" aria-label="Open ${project.name} details page">
     <div class="project-card-top"><span class="project-icon ${colors[index % colors.length]}">${initials(project.name)}</span><span class="status-pill status-${slug(project.status)}">${project.status}</span></div>
     <h3>${project.name}</h3><p>${project.objective}</p>
-    <div class="project-card-unit"><span>${iconMarkup("building-2")}</span><div><small>Unit</small><strong>${project.unit}</strong></div></div>
+    <div class="project-card-unit"><span>${iconMarkup("building-2")}</span><div><small>Branch Unit</small><strong>${project.unit}</strong></div></div>
     <div class="project-card-progress"><div class="progress-track"><span style="width:${project.progress}%"></span></div><strong>${project.progress}%</strong></div>
     <div class="project-card-meta"><div class="owner-cell"><span class="avatar">${initials(project.owner)}</span><span>${project.owner}</span></div><span class="icon-button subtle" aria-hidden="true">${iconMarkup("arrow-up-right")}</span></div>
   </article>`;
@@ -2248,7 +2251,7 @@ const SPEC_SECTIONS = [
 ];
 const HISTORY_TRACKED_FIELDS = [
   ["name", "Name"], ["status", "Status"], ["progress", "Progress"], ["owner", "Owner"],
-  ["team", "Team"], ["unit", "Unit"], ["subUnit", "Category"], ["subCategory", "Sub-category"], ["start", "Start date"],
+  ["team", "Team"], ["unit", "Branch Unit"], ["subUnit", "Unit"], ["subCategory", "Category"], ["start", "Start date"],
   ["end", "Target date"], ["milestone", "Milestone"], ["milestoneDate", "Milestone date"],
   ["risk", "Risk"], ["priority", "Priority"], ["approxCost", "Approx. cost"], ["releaseId", "Release"]
 ];
@@ -3336,8 +3339,8 @@ function renderProjectPage(projectId) {
     </header>
     <div class="project-page-stats">
       <div><span>Owner</span><strong><i class="avatar">${initials(project.owner)}</i>${project.owner}</strong></div>
-      <div><span>Unit</span><strong>${project.unit}</strong></div>
-      ${project.subUnit ? `<div><span>Category</span><strong>${project.subUnit}${project.subCategory ? ` / ${project.subCategory}` : ""}</strong></div>` : ""}
+      <div><span>Branch Unit</span><strong>${project.unit}</strong></div>
+      ${project.subUnit ? `<div><span>Unit${project.subCategory ? " / Category" : ""}</span><strong>${project.subUnit}${project.subCategory ? ` / ${project.subCategory}` : ""}</strong></div>` : ""}
       <div><span>Timeline</span><strong>${formatDate(project.start)} - ${formatDate(project.end)}</strong></div>
       <div><span>FY / quarter</span><strong>${fiscalSpanLabel(project)}</strong></div>
       <div><span>Priority</span><strong>${project.priority}</strong></div>
@@ -3521,7 +3524,7 @@ function renderProjects() {
   const grouped = ordered.filter(unit => byUnit.has(unit)).map(unit => [unit, byUnit.get(unit)]);
   elements.projectCount.textContent = `(${filtered.length})`;
   elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="8"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<tr class="project-subcategory-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nested.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("")}`).join("");
-  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<div class="project-subcategory-heading">${iconMarkup("corner-down-right")}<strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${nested.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}`).join("")}</section>`).join("");
+  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Branch Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<div class="project-subcategory-heading">${iconMarkup("corner-down-right")}<strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${nested.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}`).join("")}</section>`).join("");
   const empty = filtered.length === 0;
   elements.emptyState.classList.toggle("hidden", !empty);
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");
@@ -3564,7 +3567,7 @@ function populateTeamFilters() {
   const risks = ["High", "Medium", "Low"].filter(risk => projects.some(project => project.risk === risk));
   document.querySelector("#riskFilter").innerHTML = `<option value="all">All risk levels</option>${risks.map(risk => `<option value="${risk}">${risk}</option>`).join("")}`;
   document.querySelector("#riskFilter").value = risks.includes(riskFilter) ? riskFilter : "all";
-  document.querySelector("#unitFilter").innerHTML = `<option value="all">All units</option>${unitOptions}`;
+  document.querySelector("#unitFilter").innerHTML = `<option value="all">All branch units</option>${unitOptions}`;
   const unitValues = ["all", ...units,
     ...units.flatMap(unit => subCategoriesFor(unit).map(sub => `sub:${unit}::${sub}`)),
     ...units.flatMap(unit => subCategoriesFor(unit).flatMap(sub => subCategoryOptionsFor(unit, sub).map(inner => `sub2:${unit}::${sub}::${inner}`)))];
@@ -3974,7 +3977,7 @@ function projectsExportData() {
   };
 }
 
-const PROJECT_REGISTER_COLUMNS = ["Project", "Unit", "Category", "Sub-category", "FY / Quarter", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
+const PROJECT_REGISTER_COLUMNS = ["Project", "Branch Unit", "Unit", "Category", "FY / Quarter", "Team", "Owner", "Status", "Priority", "Risk", "Progress", "Start", "Target", "Approx. Cost", "Variance (days)", "Forecast", "Next Milestone", "Milestone Date"];
 
 function projectRegisterRow(project) {
   return [project.name, project.unit, project.subUnit || "", project.team, project.owner, project.status, project.priority, project.risk,
@@ -4244,7 +4247,7 @@ function buildRoadmapExcel() {
   window.XLSX.utils.book_append_sheet(workbook, metrics, "Success Metrics");
 
   const initiatives = window.XLSX.utils.aoa_to_sheet([
-    ["Quarter", "Unit", "Category", "Sub-category", "FY / Quarter", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
+    ["Quarter", "Branch Unit", "Unit", "Category", "FY / Quarter", "Initiative", "Team", "Owner", "Status", "Progress", "Start", "Target", "Milestone", "Milestone Date"],
     ...data.lanes.flatMap(lane => lane.items.map(project => [data.quarter, lane.unit, project.subUnit || "", project.name, project.team, project.owner,
       project.status, project.progress / 100, project.start, project.end, project.milestone, project.milestoneDate]))
   ]);

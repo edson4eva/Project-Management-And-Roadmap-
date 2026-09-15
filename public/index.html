@@ -197,7 +197,7 @@
                   <select id="ownerFilter" aria-label="Filter by owner"><option value="all">All owners</option></select>
                   <select id="riskFilter" aria-label="Filter by risk level"><option value="all">All risk levels</option></select>
                   <select id="teamFilter" aria-label="Filter by team"><option value="all">All teams</option></select>
-                  <select id="unitFilter" aria-label="Filter by unit"><option value="all">All units</option></select>
+                  <select id="unitFilter" aria-label="Filter by branch unit, unit or category"><option value="all">All branch units</option></select>
                 <select id="goalFilter" aria-label="Filter by strategic goal"><option value="all">All goals</option></select>
                 <select id="savedViewSelect" aria-label="Saved views"><option value="">No saved views yet</option></select>
                 </div>
@@ -235,7 +235,7 @@
                   <span class="legend-milestone"><i class="milestone-shape"></i>Milestone</span>
                 </div>
               </div>
-              <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span>Grouped by unit, then by category and sub-category. Bars are clipped to the period shown; completed work from earlier years is listed with the period it finished in. Hover a bar for its dates and status.</span></p>
+              <p class="roadmap-fiscal-note"><i data-lucide="calendar-range"></i><span>Grouped by branch unit, then by unit and category. Bars are clipped to the period shown; completed work from earlier years is listed with the period it finished in. Hover a bar for its dates and status.</span></p>
               <div class="roadmap-scroll" id="projectTimelineScroll">
                 <div class="timeline" id="projectTimeline"></div>
               </div>
@@ -622,9 +622,9 @@
       <div class="form-grid">
         <div class="form-section-title full-field"><span>01</span><div><strong>Project identity</strong><small>Information shown across portfolio views</small></div></div>
         <label>Project name<input name="name" required maxlength="60" placeholder="e.g. Partner portal launch"></label>
-        <label>Unit<select name="unit" required></select></label>
-        <label id="subUnitField">Category<select name="subUnit"></select></label>
-              <label id="subCategoryField">Sub-category<select name="subCategory"></select></label>
+        <label>Branch Unit<select name="unit" required></select></label>
+        <label id="subUnitField">Unit<select name="subUnit"></select></label>
+              <label id="subCategoryField">Category<select name="subCategory"></select></label>
         <label>Team<select name="team" required aria-describedby="teamFieldHint"></select><small class="field-hint" id="teamFieldHint">Teams come from the Team directory in the left navigation</small></label>
         <label>Owner<input name="owner" required maxlength="40" placeholder="Full name"></label>
         <label class="full-field">Objective<textarea name="objective" rows="3" required maxlength="180" placeholder="What measurable outcome will this project deliver?"></textarea></label>
@@ -758,7 +758,7 @@
     <div class="template-upload-body">
       <label class="template-drop-zone" id="templateDropZone"><input id="projectTemplateFile" type="file" accept=".xlsx,.xls" hidden><span><i data-lucide="upload-cloud"></i></span><strong>Choose a completed template</strong><small>Upload an Excel .xlsx or .xls file</small></label>
       <div class="template-validation" id="templateValidation" aria-live="polite"><i data-lucide="info"></i><span>No file selected.</span></div>
-      <div class="template-preview hidden" id="templatePreview"><div><strong id="templateFileName"></strong><small id="templateImportSummary"></small></div><div class="template-preview-table"><table><thead><tr><th>Project</th><th>Unit</th><th>Team</th><th>Status</th></tr></thead><tbody id="templatePreviewBody"></tbody></table></div></div>
+      <div class="template-preview hidden" id="templatePreview"><div><strong id="templateFileName"></strong><small id="templateImportSummary"></small></div><div class="template-preview-table"><table><thead><tr><th>Project</th><th>Branch Unit</th><th>Team</th><th>Status</th></tr></thead><tbody id="templatePreviewBody"></tbody></table></div></div>
     </div>
     <div class="modal-footer"><button class="text-button" id="cancelTemplateUpload" type="button">Cancel</button><button class="primary-button" id="importProjectTemplate" type="button" disabled><i data-lucide="upload"></i>Import projects</button></div>
   </dialog>
