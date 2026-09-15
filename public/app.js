@@ -3755,7 +3755,6 @@ function renderWorkspaceActivity() {
 function renderProjectPage(projectId) {
   const project = projects.find(item => item.id === Number(projectId));
   if (!project) return;
-  const workstreams = projectWorkstreams(project);
   const halfway = new Date((new Date(project.start).getTime() + new Date(project.end).getTime()) / 2).toISOString().slice(0, 10);
   const dates = [
     ["Kickoff", project.start, true],
@@ -5585,13 +5584,22 @@ function renderMilestones(sourceProjects = getFiscalProjects(), range = fiscalYe
   elements.milestoneList.innerHTML = upcoming.map((project, index) => `<button class="milestone-card open-project" data-id="${project.id}" type="button" style="--milestone-color:${["#e66f51", "#176b53", "#36709b"][index]}" aria-label="Open ${project.milestone} details"><time>${formatDate(project.milestoneDate, { month: "short", day: "numeric" })}</time><strong>${project.milestone}</strong><span>${project.name}</span></button>`).join("");
 }
 
-function projectWorkstreams(project) {
-  const progress = project.progress;
-  return [
-    { id: "discovery", name: "Discovery and alignment", owner: project.memberNames?.[0] || project.members[0] || initials(project.owner), progress: Math.min(100, progress + 24), tasks: ["Confirm scope and success measures", "Validate stakeholder requirements", "Approve delivery brief"] },
-    { id: "delivery", name: "Core delivery", owner: project.memberNames?.[1] || project.members[1] || initials(project.owner), progress, tasks: ["Complete primary implementation", "Review quality and controls", "Resolve open dependencies"] },
-    { id: "launch", name: "Launch readiness", owner: project.memberNames?.[2] || project.members[2] || initials(project.owner), progress: Math.max(5, progress - 28), tasks: ["Prepare rollout plan", "Complete operational handoff", "Monitor launch indicators"] }
-  ];
+// The drawer lists the project's own phases. It used to list three invented
+// "workstreams" whose percentages were the project's own figure plus or minus a
+// constant, which is why changing one phase looked like it changed the others:
+// every card was reading the same number. Each card here carries the phase's
+// own recorded progress and nothing is derived.
+function projectPhaseDrawerMarkup(project) {
+  const phases = Array.isArray(project.phases) ? project.phases : [];
+  const heading = `<div class="drawer-list-heading"><h3>Project phases</h3><span>${phases.length ? "Select a phase to open and edit it" : "None recorded"}</span></div>`;
+  if (!phases.length) {
+    return `${heading}<p class="drawer-empty">No phases are recorded for this project. Add them from the project's edit form.</p>`;
+  }
+  return `${heading}<div class="workstream-list">${phases.map((phase, index) => `<button class="workstream-card" data-phase-jump="${project.id}" data-phase-index="${index}" type="button">
+    <span class="workstream-status">${phase.status === "Completed" ? iconMarkup("circle-check") : iconMarkup("layers-3")}</span>
+    <span><strong>${phase.name}</strong><small>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"} - ${phase.status}</small>
+    ${hasPhaseProgress(phase) ? `<span class="mini-progress"><i style="width:${phase.progress}%"></i></span>` : ""}</span>
+    <b>${hasPhaseProgress(phase) ? `${phase.progress}%` : "-"}</b>${iconMarkup("chevron-right")}</button>`).join("")}</div>`;
 }
 
 function drawerReturnFooter(label) {
@@ -5618,22 +5626,10 @@ function renderDrawer(projectId, tab = "overview", explicitParent) {
   drawerState = { level: "project", projectId: project.id, tab, parent };
   const halfway = new Date((new Date(project.start).getTime() + new Date(project.end).getTime()) / 2).toISOString().slice(0, 10);
   const overview = `<div class="drawer-stat-grid"><div class="drawer-stat"><span>Owner</span><strong>${project.owner}</strong></div><div class="drawer-stat"><span>Target</span><strong>${formatDate(project.end)}</strong></div><div class="drawer-stat"><span>Risk</span><strong>${project.risk}</strong></div></div><section class="drawer-section"><div class="drawer-progress-label"><strong>Overall progress</strong><span>${project.progress}%</span></div><div class="progress-track drawer-progress"><span style="width:${project.progress}%"></span></div></section><section class="drawer-section"><h3>Objective</h3><p class="drawer-copy">${project.objective}</p></section><section class="drawer-section"><h3>Core team</h3><div class="drawer-team">${project.members.map(member => `<span class="avatar">${member}</span>`).join("")}<span>${project.members.length} contributors</span></div></section>`;
-  const workstreams = `<div class="drawer-list-heading"><h3>Delivery workstreams</h3><span>Select a workstream for task details</span></div><div class="workstream-list">${projectWorkstreams(project).map(stream => `<button class="workstream-card" data-workstream="${stream.id}" data-project-id="${project.id}" type="button"><span class="workstream-status">${stream.progress === 100 ? iconMarkup("circle-check") : iconMarkup("layers-3")}</span><span><strong>${stream.name}</strong><small>${stream.tasks.length} tasks - Owner ${stream.owner}</small><span class="mini-progress"><i style="width:${stream.progress}%"></i></span></span><b>${stream.progress}%</b>${iconMarkup("chevron-right")}</button>`).join("")}</div>`;
+  const phasesTab = projectPhaseDrawerMarkup(project);
   const milestones = `<section><div class="drawer-list-heading"><h3>Delivery milestones</h3><span>Key gates and target dates</span></div><div class="drawer-milestone"><i></i><strong>Project kickoff</strong><time>${formatDate(project.start)}</time></div><div class="drawer-milestone"><i class="${project.progress < 50 ? "future" : ""}"></i><strong>Midpoint review</strong><time>${formatDate(halfway)}</time></div><div class="drawer-milestone"><i class="future"></i><strong>${project.milestone}</strong><time>${formatDate(project.milestoneDate)}</time></div><div class="drawer-milestone"><i class="future"></i><strong>Target completion</strong><time>${formatDate(project.end)}</time></div></section><section class="drawer-section"><h3>Delivery signal</h3><div class="risk-callout risk-${project.risk.toLowerCase()}">${iconMarkup(project.risk === "High" ? "triangle-alert" : "shield-check")}<span><strong>${project.risk} risk</strong><small>${project.status === "Off track" ? "Executive intervention is recommended." : "Risk posture is monitored in the weekly review."}</small></span></div></section>`;
   const backLabel = parent.level === "portfolio" ? drilldownDefinitions[parent.key].title : parent.level === "team" ? `Team ${parent.teamId}` : parent.view === "roadmap" ? "Roadmap" : "Projects";
-  elements.drawer.innerHTML = `<div class="drawer-header"><div class="drawer-header-top"><div class="drawer-header-actions"><button class="drawer-back" data-drawer-back type="button">${iconMarkup("arrow-left")} ${backLabel}</button><span class="status-pill status-${slug(project.status)}">${project.status}</span></div><button class="icon-button close-drawer" type="button" aria-label="Close project details">${iconMarkup("x")}</button></div><h2 id="drawerTitle">${project.name}</h2><p>${project.team} initiative - ${project.owner}</p></div><div class="drawer-tabs" role="tablist" aria-label="Project details"><button class="${tab === "overview" ? "active" : ""}" data-project-tab="overview" data-id="${project.id}" type="button">Overview</button><button class="${tab === "workstreams" ? "active" : ""}" data-project-tab="workstreams" data-id="${project.id}" type="button">Workstreams</button><button class="${tab === "milestones" ? "active" : ""}" data-project-tab="milestones" data-id="${project.id}" type="button">Milestones</button></div><div class="drawer-body">${tab === "overview" ? overview : tab === "workstreams" ? workstreams : milestones}</div>${drawerReturnFooter(backLabel)}`;
-  openDrawer();
-}
-
-function renderWorkstreamDrawer(projectId, workstreamId) {
-  const project = projects.find(item => item.id === Number(projectId));
-  const stream = project && projectWorkstreams(project).find(item => item.id === workstreamId);
-  if (!project || !stream) return;
-  const parent = activeView === "project-detail" ? { level: "page", projectId: project.id } : drawerState?.level === "project" ? drawerState.parent : { level: "view", view: activeView };
-  drawerState = { level: "workstream", projectId: project.id, workstreamId, parent };
-  const completedTasks = Math.round(stream.tasks.length * stream.progress / 100);
-  const returnLabel = parent.level === "page" ? "project details" : "project workstreams";
-  elements.drawer.innerHTML = `<div class="drawer-header compact"><div class="drawer-header-top"><button class="drawer-back" data-drawer-back type="button">${iconMarkup("arrow-left")} ${returnLabel[0].toUpperCase() + returnLabel.slice(1)}</button><button class="icon-button close-drawer" type="button" aria-label="Close details">${iconMarkup("x")}</button></div><p class="drawer-context">${project.name}</p><h2 id="drawerTitle">${stream.name}</h2></div><div class="drawer-body"><div class="drawer-level"><span>Project</span>${iconMarkup("chevron-right")}<span>Workstreams</span>${iconMarkup("chevron-right")}<strong>${stream.name}</strong></div><div class="drawer-stat-grid"><div class="drawer-stat"><span>Owner</span><strong>${stream.owner}</strong></div><div class="drawer-stat"><span>Progress</span><strong>${stream.progress}%</strong></div><div class="drawer-stat"><span>Tasks</span><strong>${completedTasks}/${stream.tasks.length}</strong></div></div><section class="drawer-section"><h3>Task breakdown</h3><div class="task-list">${stream.tasks.map((task, index) => { const complete = index < completedTasks; return `<label class="task-row"><input type="checkbox" ${complete ? "checked" : ""}><span class="task-check">${iconMarkup("check")}</span><span><strong>${task}</strong><small>${complete ? "Complete" : index === completedTasks ? "In progress" : "Not started"}</small></span></label>`; }).join("")}</div></section><section class="drawer-section"><h3>Workstream progress</h3><div class="progress-track drawer-progress"><span style="width:${stream.progress}%"></span></div></section></div>${drawerReturnFooter(returnLabel)}`;
+  elements.drawer.innerHTML = `<div class="drawer-header"><div class="drawer-header-top"><div class="drawer-header-actions"><button class="drawer-back" data-drawer-back type="button">${iconMarkup("arrow-left")} ${backLabel}</button><span class="status-pill status-${slug(project.status)}">${project.status}</span></div><button class="icon-button close-drawer" type="button" aria-label="Close project details">${iconMarkup("x")}</button></div><h2 id="drawerTitle">${project.name}</h2><p>${project.team} initiative - ${project.owner}</p></div><div class="drawer-tabs" role="tablist" aria-label="Project details"><button class="${tab === "overview" ? "active" : ""}" data-project-tab="overview" data-id="${project.id}" type="button">Overview</button><button class="${tab === "phases" ? "active" : ""}" data-project-tab="phases" data-id="${project.id}" type="button">Phases</button><button class="${tab === "milestones" ? "active" : ""}" data-project-tab="milestones" data-id="${project.id}" type="button">Milestones</button></div><div class="drawer-body">${tab === "overview" ? overview : tab === "phases" ? phasesTab : milestones}</div>${drawerReturnFooter(backLabel)}`;
   openDrawer();
 }
 
@@ -5653,10 +5649,7 @@ function closeDrawer() {
 
 function returnToParent() {
   if (!drawerState) return;
-  if (drawerState.level === "workstream") {
-    if (drawerState.parent.level === "page") closeDrawer();
-    else renderDrawer(drawerState.projectId, "workstreams", drawerState.parent);
-  } else if (drawerState.level === "project" && drawerState.parent.level === "portfolio") {
+  if (drawerState.level === "project" && drawerState.parent.level === "portfolio") {
     renderPortfolioDrawer(drawerState.parent.key, drawerState.parent.view);
   } else if (drawerState.level === "project" && drawerState.parent.level === "team") {
     renderTeamDrawer(drawerState.parent.teamId);
@@ -6258,12 +6251,8 @@ document.addEventListener("click", event => {
   if (deleteFeedbackButton) deleteFeedbackRecord(deleteFeedbackButton.dataset.deleteFeedback);
   const tabButton = event.target.closest("[data-project-tab]");
   if (tabButton) renderDrawer(tabButton.dataset.id, tabButton.dataset.projectTab);
-  const workstreamButton = event.target.closest("[data-workstream]");
-  if (workstreamButton) renderWorkstreamDrawer(workstreamButton.dataset.projectId, workstreamButton.dataset.workstream);
   if (event.target.closest("[data-drawer-back]")) returnToParent();
   if (event.target.closest("[data-return-projects]")) returnToProjects();
-  const pageWorkstream = event.target.closest("[data-page-workstream]");
-  if (pageWorkstream) renderWorkstreamDrawer(pageWorkstream.dataset.projectId, pageWorkstream.dataset.pageWorkstream);
   const teamButton = event.target.closest("[data-team-id]");
   if (teamButton) renderTeamDrawer(teamButton.dataset.teamId);
   const modifyTeamButton = event.target.closest("[data-modify-team]");
