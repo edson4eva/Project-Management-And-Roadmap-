@@ -127,6 +127,40 @@ async function readJsonBody(request, limit = 4_000_000) {
   });
 }
 
+
+// The workspace password. It is the same value the browser-only mode accepts,
+// so one password works whether or not a server is reachable. It is a starting
+// point, not a secret: the account is flagged as still using it and the app
+// says so until it is changed.
+const DEFAULT_WORKSPACE_PASSWORD = process.env.DEFAULT_WORKSPACE_PASSWORD || "12345678";
+const SEED_ACCOUNT_EMAIL = (process.env.SEED_ACCOUNT_EMAIL || "edson.roopnarine@gov.ab.ca").toLowerCase();
+const SEED_WORKSPACE_NAME = process.env.SEED_WORKSPACE_NAME || "Platforms Branch";
+
+// Runs once, on an empty database. It never touches an existing account, so a
+// changed password is never reset by a redeploy.
+async function seedFirstAccount() {
+  const { rows } = await query(`SELECT count(*)::int AS count FROM users`);
+  if (rows[0].count > 0) return null;
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = await hashPassword(DEFAULT_WORKSPACE_PASSWORD, salt);
+  const created = await withTransaction(async client => {
+    const user = await client.query(
+      `INSERT INTO users (email, name, password_hash, password_salt, password_is_default)
+       VALUES ($1, $2, $3, $4, true) RETURNING id, email, name`,
+      [SEED_ACCOUNT_EMAIL, displayNameFromEmail(SEED_ACCOUNT_EMAIL), passwordHash, salt]
+    );
+    const workspace = await client.query(
+      `INSERT INTO workspaces (name, created_by) VALUES ($1, $2) RETURNING id, name`,
+      [SEED_WORKSPACE_NAME, user.rows[0].id]
+    );
+    await client.query(`INSERT INTO members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      [workspace.rows[0].id, user.rows[0].id]);
+    return { user: user.rows[0], workspace: workspace.rows[0] };
+  });
+  console.log(`Seeded the first account ${created.user.email} and workspace "${created.workspace.name}".`);
+  return created;
+}
+
 // ---------------------------------------------------------------------------
 // Sessions and identity
 // ---------------------------------------------------------------------------
@@ -135,7 +169,7 @@ async function currentUser(request) {
   const sessionToken = readCookies(request)[SESSION_COOKIE];
   if (!sessionToken) return null;
   const { rows } = await query(
-    `SELECT u.id, u.email, u.name
+    `SELECT u.id, u.email, u.name, u.password_is_default
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = $1 AND s.expires_at > now()`,
     [sessionToken]
@@ -309,10 +343,11 @@ route("POST", /^\/api\/auth\/register$/, async (request, response) => {
   const salt = randomBytes(16).toString("hex");
   const passwordHash = await hashPassword(password, salt);
   const name = String(body.name || "").trim() || displayNameFromEmail(email);
+  const usingDefault = password === DEFAULT_WORKSPACE_PASSWORD;
   const created = await withTransaction(async client => {
     const user = await client.query(
-      `INSERT INTO users (email, name, password_hash, password_salt) VALUES ($1, $2, $3, $4) RETURNING id, email, name`,
-      [email, name, passwordHash, salt]
+      `INSERT INTO users (email, name, password_hash, password_salt, password_is_default) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name`,
+      [email, name, passwordHash, salt, usingDefault]
     );
     const workspace = await client.query(
       `INSERT INTO workspaces (name, created_by) VALUES ($1, $2) RETURNING id, name`,
@@ -581,6 +616,29 @@ route("POST", /^\/api\/notifications\/read$/, async (request, response) => {
   send(response, 200, { ok: true });
 });
 
+route("POST", /^\/api\/auth\/password$/, async (request, response) => {
+  const user = await currentUser(request);
+  if (!user) return fail(response, 401, "Sign in first.");
+  const body = await readJsonBody(request);
+  const next = String(body.password || "");
+  if (next.length < 8) return fail(response, 400, "Use a password of at least 8 characters.");
+  const { rows } = await query(`SELECT password_hash, password_salt FROM users WHERE id = $1`, [user.id]);
+  if (!(await passwordMatches(String(body.current || ""), rows[0].password_salt, rows[0].password_hash))) {
+    return fail(response, 403, "That current password is not right.");
+  }
+  const salt = randomBytes(16).toString("hex");
+  const passwordHash = await hashPassword(next, salt);
+  await query(
+    `UPDATE users SET password_hash = $1, password_salt = $2, password_is_default = $3 WHERE id = $4`,
+    [passwordHash, salt, next === DEFAULT_WORKSPACE_PASSWORD, user.id]
+  );
+  // Every other session for this account is ended, so an old one cannot keep
+  // using the password that was just replaced.
+  const keep = readCookies(request)[SESSION_COOKIE];
+  await query(`DELETE FROM sessions WHERE user_id = $1 AND token <> $2`, [user.id, keep]);
+  send(response, 200, { ok: true, stillDefault: next === DEFAULT_WORKSPACE_PASSWORD });
+});
+
 route("GET", /^\/api\/health$/, async (request, response) => {
   try {
     await query("SELECT 1");
@@ -665,6 +723,7 @@ async function start() {
     process.exit(1);
   }
   await migrate();
+  await seedFirstAccount();
   server.listen(PORT, "0.0.0.0", () => console.log(`Listening on ${PORT}`));
 }
 

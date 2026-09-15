@@ -1512,3 +1512,15 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
    reads as the indent marker it is. */
 .project-subunit-table-heading svg, .project-subunit-heading svg { width: 16px; height: 16px; color: var(--green); stroke-width: 2.4; }
 .project-subcategory-table-heading svg, .project-subcategory-heading svg { width: 14px; height: 14px; color: var(--ink-soft); stroke-width: 2.4; }
+
+/* --- Default password notice -------------------------------------------
+   An account still on the password it was created with is called out where it
+   cannot be missed, with the way to change it next to the warning. */
+.default-password-notice { display: flex; align-items: center; gap: 9px; width: 100%; margin: 0 0 10px; padding: 9px 12px; color: #7a2430; background: #fdf1f2; border: 1px solid #f3c6cb; border-radius: var(--radius-sm); font-size: var(--fs-200); line-height: 1.45; }
+.default-password-notice svg { width: 15px; flex: 0 0 auto; }
+.default-password-notice span { flex: 1 1 auto; }
+.default-password-notice strong { font-weight: 800; }
+.default-password-notice .secondary-button { flex: 0 0 auto; padding: 5px 10px; font-size: var(--fs-200); }
+.password-form { margin-bottom: 12px; }
+.password-form strong { font-size: var(--fs-200); }
+.login-mode code { padding: 1px 5px; background: var(--canvas); border: 1px solid var(--line); border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; }

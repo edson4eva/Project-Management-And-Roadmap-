@@ -49,6 +49,9 @@ export async function migrate() {
       password_salt TEXT NOT NULL,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  // Tracks whether an account is still on the password it was created with, so
+  // the app can say so instead of leaving a known password in place silently.
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_is_default BOOLEAN NOT NULL DEFAULT false`);
   await query(`CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users (lower(email))`);
   await query(`
     CREATE TABLE IF NOT EXISTS sessions (

@@ -160,7 +160,10 @@ function wouldCreateCycle(projectId, dependsOn, list = projects) {
 
 const AS_OF_LONG = "September 10, 2025";
 const AUTH_STORAGE_KEY = "platforms-branch-session";
-const DEFAULT_PASSWORD = "1234";
+// The workspace password, matching the server's default so one password works
+// whether or not a server is reachable. Eight characters is the server's
+// minimum, so the same value is valid for a real account.
+const DEFAULT_PASSWORD = "12345678";
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const colors = ["teal", "coral", "amber", "blue"];
 const teamRoleFields = [
@@ -781,21 +784,58 @@ function setLoginMode(mode) {
 
 // The login screen says which kind of sign-in it is offering, so nobody types a
 // real password into a browser-only copy or a four-digit one into a server.
+// An account still on the password it was created with is called out, with the
+// means to change it, rather than the app staying quiet about it.
+function renderDefaultPasswordNotice() {
+  const host = document.querySelector("#defaultPasswordNotice");
+  if (!host) return;
+  const show = Boolean(workspace.user?.password_is_default);
+  host.classList.toggle("hidden", !show);
+  if (!show) return;
+  host.innerHTML = `${iconMarkup("shield-alert")}<span><strong>This account still uses the default workspace password.</strong> Anyone who knows it can sign in as you. Change it under Settings - Workspace.</span><button class="secondary-button" id="openPasswordSettings" type="button">Change it</button>`;
+  refreshIcons();
+}
+
+async function changeWorkspacePassword() {
+  const current = document.querySelector("#currentPasswordInput").value;
+  const next = document.querySelector("#newPasswordInput").value;
+  const status = document.querySelector("#passwordStatus");
+  if (next.length < 8) {
+    status.textContent = "Use a password of at least 8 characters.";
+    return;
+  }
+  try {
+    const result = await api("POST", "/api/auth/password", { current, password: next });
+    workspace.user = { ...workspace.user, password_is_default: result.stillDefault };
+    document.querySelector("#currentPasswordInput").value = "";
+    document.querySelector("#newPasswordInput").value = "";
+    status.textContent = result.stillDefault
+      ? "Saved, but that is still the default password."
+      : "Password changed. Other sessions signed out.";
+    renderDefaultPasswordNotice();
+    renderWorkspacePanel();
+    showToast("Password changed");
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+
 function renderLoginMode() {
   const line = document.querySelector("#loginModeLine");
   const switcher = document.querySelector("#loginModeSwitch");
   const password = elements.loginForm.elements.password;
   if (!line) return;
   if (workspace.available) {
-    line.innerHTML = `${iconMarkup("cloud")}<span>Accounts are held on the server, so a workspace can be shared with colleagues.</span>`;
+    line.innerHTML = `${iconMarkup("cloud")}<span>Accounts are held on the server, so a workspace can be shared with colleagues. The default workspace password is <code>12345678</code> - change it once you are in.</span>`;
     switcher.classList.remove("hidden");
     password.minLength = 8;
     password.removeAttribute("inputmode");
+    password.placeholder = loginMode === "register" ? "At least 8 characters" : "Enter your password";
   } else {
-    line.innerHTML = `${iconMarkup("hard-drive")}<span>This copy has no server, so everything stays in this browser. Any email address works with the four-digit workspace password.</span>`;
+    line.innerHTML = `${iconMarkup("hard-drive")}<span>This copy has no server, so everything stays in this browser. Any email address works with the default workspace password <code>12345678</code>.</span>`;
     switcher.classList.add("hidden");
-    password.minLength = 4;
-    password.setAttribute("inputmode", "numeric");
+    password.minLength = 8;
+    password.removeAttribute("inputmode");
   }
   refreshIcons();
 }
@@ -3101,6 +3141,7 @@ function renderWorkspaceBar() {
   const viewers = document.querySelector("#workspaceViewers");
   if (!dot) return;
   const pushing = workspace.pushing.size > 0;
+  renderDefaultPasswordNotice();
   if (!workspace.available) {
     dot.className = "workspace-dot local";
     mode.textContent = "This browser only";
@@ -3142,6 +3183,13 @@ function renderWorkspacePanel() {
   }
   const list = (workspace.list || []).map(entry => `<option value="${entry.id}"${entry.id === workspace.id ? " selected" : ""}>${entry.name} (${entry.role})</option>`).join("");
   host.innerHTML = `
+    <div class="settings-add password-form">
+      <div class="full-field"><strong>${workspace.user.password_is_default ? "Change the default password" : "Change your password"}</strong>${workspace.user.password_is_default ? `<small class="field-hint">This account is still on the password it was created with.</small>` : ""}</div>
+      <label>Current password<input id="currentPasswordInput" type="password" autocomplete="current-password"></label>
+      <label>New password<input id="newPasswordInput" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></label>
+      <button class="secondary-button" id="changePasswordButton" type="button">${iconMarkup("key-round")}Change password</button>
+      <p class="score-preview full-field" id="passwordStatus"></p>
+    </div>
     <div class="workspace-switch">
       <label>Open workspace<select id="workspaceSelect">${list || `<option value="">None yet</option>`}</select></label>
       <div class="workspace-new">
@@ -5986,6 +6034,7 @@ document.querySelector("#workspacePanel").addEventListener("click", event => {
   if (event.target.closest("#createShareLinkButton")) createWorkspaceShareLink();
   if (event.target.closest("#createWorkspaceButton")) createWorkspace();
   if (event.target.closest("#leaveWorkspaceButton")) { leaveWorkspace(); showToast("Working from this browser only"); }
+  if (event.target.closest("#changePasswordButton")) changeWorkspacePassword();
   const remove = event.target.closest("[data-remove-member]");
   if (remove) removeWorkspaceMember(remove.dataset.removeMember);
   const copy = event.target.closest("[data-copy-link]");
@@ -6017,6 +6066,9 @@ document.querySelector("#copyShareLink").addEventListener("click", copyShareLink
 document.querySelector("#closeShareModal").addEventListener("click", () => document.querySelector("#shareModal").close());
 document.querySelector("#doneShareModal").addEventListener("click", () => document.querySelector("#shareModal").close());
 document.querySelector("#openSettingsModal").addEventListener("click", openSettingsModal);
+document.querySelector("#defaultPasswordNotice").addEventListener("click", event => {
+  if (event.target.closest("#openPasswordSettings")) openSettingsModal();
+});
 document.querySelector("#closeSettingsModal").addEventListener("click", () => document.querySelector("#settingsModal").close());
 document.querySelector("#doneSettingsModal").addEventListener("click", () => document.querySelector("#settingsModal").close());
 document.querySelector("#addCustomFieldButton").addEventListener("click", addCustomField);
