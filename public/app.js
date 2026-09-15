@@ -78,7 +78,12 @@ function normalizeProjectAlignment(project) {
   project.scoring = Object.fromEntries(SCORE_FIELD_KEYS.map(key => [key, numberOrNull(scoring[key])]));
   project.releaseId = numberOrNull(project.releaseId);
   project.custom = project.custom && typeof project.custom === "object" ? project.custom : {};
-  project.subCategory = subCategoryOptionsFor(project.unit, project.subUnit).includes(project.subCategory) ? project.subCategory : "";
+  // A category is kept whether or not it is in the known list. Validating it
+  // away was silent data loss: a workspace's own category would vanish if the
+  // project record happened to load before the list did. Anything unrecognised
+  // still groups and still saves; it simply is not offered to others until it
+  // is added to the list.
+  project.subCategory = typeof project.subCategory === "string" ? project.subCategory.trim().slice(0, 60) : "";
   return project;
 }
 
@@ -1128,9 +1133,12 @@ function populateProjectSubUnitOptions(unit, selected) {
 function populateProjectSubCategoryOptions(unit, category, selected) {
   const declared = categorySubCategories[`${unit}::${category}`] || [];
   const custom = customCategoriesFor(unit, category);
-  const options = [...declared, ...custom];
+  // A value the project already carries is offered even when the list has
+  // forgotten it, so opening and saving the form cannot erase it.
+  const orphan = selected && ![...declared, ...custom].includes(selected) ? [selected] : [];
+  const options = [...declared, ...custom, ...orphan];
   const select = elements.form.elements.subCategory;
-  select.innerHTML = taxonomySelectMarkup(declared, custom, options.includes(selected) ? selected : "");
+  select.innerHTML = taxonomySelectMarkup(declared, [...custom, ...orphan], options.includes(selected) ? selected : "");
   select.value = options.includes(selected) ? selected : "";
   // A category only makes sense under a unit, so the control appears once one
   // is chosen - and then it offers adding the first category too.
@@ -1600,8 +1608,14 @@ function clearProjectScope() {
   if (activeView === "roadmap") renderRoadmap();
 }
 
+// The Projects section is the register: it lists every project the filters
+// allow, whatever fiscal year it runs in. The year governs the timeline's axis
+// and the year-scoped figures, not whether a project exists. Twice now a
+// project has been reported missing when it was only in another year - a
+// completed one behind, and a planned one ahead - so the year no longer hides
+// anything from the list. Each row states its own FY and quarter.
 function getFilteredProjects() {
-  return getFiscalProjects().filter(matchesProjectScope);
+  return projects.filter(matchesProjectScope);
 }
 
 function renderMetrics() {
@@ -3222,8 +3236,14 @@ async function refreshWorkspaceSnapshot({ quiet = false, adoptLocal = false } = 
   workspace.viewers = snapshot.viewers || [];
   if (snapshot.user) workspace.user = snapshot.user;
   if (snapshot.viaShare) workspace.shareLabel = snapshot.viaShare.label || "Shared link";
+  // Settings first, always. It carries the unit and category lists, and a
+  // project's category is validated against them as it loads - so applying
+  // projects first would silently clear a category this workspace added, and
+  // the next save would persist the loss.
   const kinds = Object.keys(snapshot.records || {});
-  kinds.forEach(kind => applyWorkspaceRecord(kind, snapshot.records[kind], snapshot.versions[kind]));
+  const ordered = ["settings", ...kinds.filter(kind => kind !== "settings")];
+  ordered.filter(kind => kinds.includes(kind))
+    .forEach(kind => applyWorkspaceRecord(kind, snapshot.records[kind], snapshot.versions[kind]));
   // An empty workspace that its owner has just opened takes this browser's
   // portfolio as its starting point - the alternative would be to show them an
   // empty app and lose their work.
@@ -3236,9 +3256,10 @@ async function refreshWorkspaceSnapshot({ quiet = false, adoptLocal = false } = 
 
 async function publishLocalToWorkspace() {
   const payloads = {
+    settings: { scoreModel, taxonomy: customTaxonomy },
     projects, teams: teamDirectory, strategy: roadmapStrategy, ideas, feedback: feedbackEntries,
     releases, specs: projectSpecs, notes: projectNotes, history: projectHistory,
-    fields: customFields, views: savedViews, settings: { scoreModel, taxonomy: customTaxonomy }
+    fields: customFields, views: savedViews
   };
   for (const [kind, data] of Object.entries(payloads)) {
     try {
@@ -3733,12 +3754,16 @@ function subGroupsFor(unit, unitProjects) {
 // The level below a category. A category with no sub-categories returns one
 // unnamed group, so every caller can treat the structure the same way.
 function nestedGroupsFor(unit, category, items) {
-  const options = subCategoryOptionsFor(unit, category);
-  if (!options.length) return [{ subCategory: "", items }];
+  // Declared order first, then any category the projects themselves carry that
+  // the list does not know about, so nothing is grouped out of sight.
+  const declared = subCategoryOptionsFor(unit, category);
+  const present = [...new Set(items.map(project => project.subCategory).filter(Boolean))];
+  const order = [...declared.filter(sub => present.includes(sub)), ...present.filter(sub => !declared.includes(sub))];
+  if (!order.length) return [{ subCategory: "", items }];
   const groups = [];
   const loose = items.filter(project => !project.subCategory);
   if (loose.length) groups.push({ subCategory: "", items: loose });
-  options.forEach(sub => {
+  order.forEach(sub => {
     const list = items.filter(project => project.subCategory === sub);
     if (list.length) groups.push({ subCategory: sub, items: list });
   });
@@ -4316,7 +4341,7 @@ function buildProjectsPdf() {
   const data = projectsExportData();
   const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   doc.setProperties({ title: "Project Workspace Export", subject: "Project execution register", author: "Platforms Branch Project and Roadmap App" });
-  exportDocHeader(doc, "Project workspace", `${data.fiscalLabel}  |  ${data.scope.status}  |  ${data.scope.team}  |  ${data.scope.unit}  |  As of ${AS_OF_LONG}`, 842);
+  exportDocHeader(doc, "Project workspace", `Every fiscal year  |  ${data.scope.status}  |  ${data.scope.team}  |  ${data.scope.unit}  |  As of ${AS_OF_LONG}`, 842);
 
   doc.autoTable({
     startY: 94, margin: { left: 36 }, tableWidth: 300,
@@ -5899,7 +5924,7 @@ function submitProject(event) {
     return;
   }
   elements.form.elements.dependsOn.setCustomValidity("");
-  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: data.subUnit !== ADD_NEW_VALUE && subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: data.subCategory !== ADD_NEW_VALUE && subCategoryOptionsFor(data.unit, data.subUnit).includes(data.subCategory) ? data.subCategory : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: data.subUnit !== ADD_NEW_VALUE && subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: data.subCategory === ADD_NEW_VALUE ? "" : String(data.subCategory || "").trim(), phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
