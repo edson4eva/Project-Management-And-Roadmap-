@@ -648,7 +648,7 @@
         <label>Start date<input name="start" type="date" required></label>
         <label>Target date<input name="end" type="date" required></label>
         <label>Status<select name="status"><option>Planned</option><option>On track</option><option>At risk</option><option>Off track</option><option>Completed</option><option>In-flight</option><option>Next</option><option>Later</option><option>Pause</option></select></label>
-        <label>Progress (%)<input name="progress" type="number" min="0" max="100" value="5" required></label>
+        <label>Progress (%)<input name="progress" type="number" min="0" max="100" value="5" required><small class="phase-rollup-note" id="progressRollupNote" hidden></small></label>
         <label>Priority<select name="priority"><option>High</option><option selected>Medium</option><option>Low</option></select></label>
         <label>Risk level<select name="risk"><option>Low</option><option selected>Medium</option><option>High</option></select></label>
         <label>Approx. Cost in dollars<input name="approxCost" type="number" min="0" step="1000" required placeholder="e.g. 250000"></label>

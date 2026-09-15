@@ -672,6 +672,32 @@ function applyUiamDeckStructure(list) {
   return list;
 }
 
+// A phase can record its own progress, independently of the phases around it.
+// An empty field means no progress has been recorded for that phase - which is
+// different from recording zero - so it stays empty rather than becoming a 0.
+function phaseProgressValue(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "";
+  return Math.min(100, Math.max(0, Math.round(number)));
+}
+
+function hasPhaseProgress(phase) {
+  return Boolean(phase) && phase.progress !== "" && phase.progress !== null
+    && phase.progress !== undefined && Number.isFinite(Number(phase.progress));
+}
+
+// The project's progress is the total of its phases: each phase counts for an
+// equal share of the project, so a phase's own figure contributes that share.
+// Returns null when no phase records progress at all, in which case the project
+// keeps the progress recorded against it and nothing is overwritten.
+function phaseProgressRollup(phases) {
+  const list = Array.isArray(phases) ? phases : [];
+  if (!list.length || !list.some(hasPhaseProgress)) return null;
+  const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
+  return Math.round(total / list.length);
+}
+
 const LEGACY_PRIVACY_PORTAL = [
   "Phase 1.0 PIB - Personal Information Bank",
   "Phase 2.1 Unified Messaging Service",
@@ -739,19 +765,14 @@ function consolidateUnifiedMessaging(list) {
   // different one keeps it as its own description rather than losing it.
   const shared = ordered.map(stage => stage.objective).sort((a, b) =>
     ordered.filter(s => s.objective === b).length - ordered.filter(s => s.objective === a).length)[0] || "";
-  // Derived, because no record states them for the project as a whole. Both
-  // follow the live phase: the project is in the state the stage under way is
-  // in, and it is as far along as that stage records. An average across the
-  // stages would read the project as barely started while its live phase is
-  // most of the way through, so the live phase governs.
+  // Derived, because no record states it for the project as a whole: the
+  // project is in the state the stage under way is in.
   const live = ordered.filter(stage => stage.status === "In-flight");
   const status = live.length ? "In-flight"
     : ordered.every(stage => stage.status === "Completed") ? "Completed"
     : first.status;
-  const progress = live.length
-    ? Math.max(...live.map(stage => Number(stage.progress) || 0))
-    : ordered.every(stage => stage.status === "Completed") ? 100
-    : Number(first.progress) || 0;
+  // The phases carry their own progress, so the project's is their total.
+  const progress = phaseProgressRollup(ordered.map(stage => ({ progress: phaseProgressValue(stage.progress) })));
   const project = {
     ...first,
     name: UMS_SUB_UNIT,
@@ -767,12 +788,13 @@ function consolidateUnifiedMessaging(list) {
       start: stage.start || "",
       end: stage.end || "",
       status: stage.status,
+      progress: phaseProgressValue(stage.progress),
       objective: stage.objective === shared ? "" : stage.objective || ""
     }))
   };
   const at = list.findIndex(isLegacyUmsStage);
   const index = kept.length && at >= 0 ? Math.min(at, kept.length) : kept.length;
-  kept.splice(index, 0, project);
+  kept.splice(index, 0, normalizeProjectUnit(project));
   return kept;
 }
 
@@ -1081,7 +1103,7 @@ function consolidatePrivacyPortal(list) {
   if (kept.some(project => project.name === PRIVACY_PORTAL_PROJECT.name)) return kept;
   const at = list.findIndex(project => LEGACY_PRIVACY_PORTAL.includes(project.name));
   const index = kept.length && at >= 0 ? Math.min(at, kept.length) : kept.length;
-  kept.splice(index, 0, { ...PRIVACY_PORTAL_PROJECT, phases: PRIVACY_PORTAL_PROJECT.phases.map(phase => ({ ...phase })) });
+  kept.splice(index, 0, normalizeProjectUnit({ ...PRIVACY_PORTAL_PROJECT, phases: PRIVACY_PORTAL_PROJECT.phases.map(phase => ({ ...phase })) }));
   return kept;
 }
 
@@ -1111,12 +1133,15 @@ function normalizeProjectUnit(project) {
           start: phase.start || "",
           end: phase.end || "",
           objective: typeof phase.objective === "string" ? phase.objective.trim() : "",
+          progress: phaseProgressValue(phase.progress),
           status: projectStatuses.includes(phase.status) ? phase.status : projectStatuses[0]
         }))
     : [];
   const candidateSub = project.subUnit || aliasSub || "";
   const subUnit = subCategoriesFor(unit).includes(candidateSub) ? candidateSub : "";
-  return { ...projectWithoutCode, code: initials(project.name), unit, team, subUnit, phases };
+  const rolled = phaseProgressRollup(phases);
+  const progress = rolled === null ? project.progress : rolled;
+  return { ...projectWithoutCode, code: initials(project.name), unit, team, subUnit, phases, progress };
 }
 
 function directoryTeamNames() {
@@ -1137,6 +1162,7 @@ function phaseRowMarkup(phase = {}) {
     <label>Start<input class="phase-start" type="date" value="${phase.start || ""}"></label>
     <label>End<input class="phase-end" type="date" value="${phase.end || ""}"></label>
     <label>Status<select class="phase-status">${options}</select></label>
+    <label>Progress <small>%</small><input class="phase-progress" type="number" min="0" max="100" value="${hasPhaseProgress(phase) ? phase.progress : ""}" placeholder="-"></label>
     <button class="phase-remove" data-remove-phase type="button" aria-label="Remove this phase" title="Remove this phase">${iconMarkup("trash-2")}</button>
     <label class="phase-objective-field">Description <small>optional</small><input class="phase-objective" maxlength="400" value="${(phase.objective || "").replace(/"/g, "&quot;")}" placeholder="What this phase covers"></label>
   </fieldset>`;
@@ -1148,9 +1174,28 @@ function renderPhaseRows(phases) {
   refreshIcons();
 }
 
+// When the phases record progress, the project's own progress is their total,
+// so the field states the total and stops taking a value that would be
+// ignored. Clearing the phase figures hands the field back.
+function updateProgressRollupNote() {
+  const note = document.querySelector("#progressRollupNote");
+  const field = elements.form.elements.progress;
+  const rolled = phaseProgressRollup(readPhaseRows());
+  if (rolled === null) {
+    note.hidden = true;
+    field.readOnly = false;
+    return;
+  }
+  field.value = rolled;
+  field.readOnly = true;
+  note.hidden = false;
+  note.textContent = `Totalled from the phases below: ${rolled}%`;
+}
+
 function updatePhaseEmptyState() {
   const count = document.querySelectorAll("#phaseRows .phase-row").length;
   document.querySelector("#phaseEmpty").hidden = count > 0;
+  updateProgressRollupNote();
 }
 
 function readPhaseRows() {
@@ -1160,6 +1205,7 @@ function readPhaseRows() {
       start: row.querySelector(".phase-start").value,
       end: row.querySelector(".phase-end").value,
       objective: row.querySelector(".phase-objective").value.trim(),
+      progress: phaseProgressValue(row.querySelector(".phase-progress").value),
       status: row.querySelector(".phase-status").value
     }))
     .filter(phase => phase.name)
@@ -1990,6 +2036,7 @@ function phaseChipMarkup(project, phase, index) {
   return `<button class="phase-chip phase-chip-${slug(phase.status)}" data-phase-jump="${project.id}" data-phase-index="${index}" type="button"${note ? ` title="${note}"` : ""} aria-label="Open ${phase.name} on ${project.name}">
     <span class="phase-chip-index">${index + 1}</span>
     <span class="phase-chip-text"><strong>${phase.name}</strong><small>${dates}</small></span>
+    ${!hasPhaseProgress(phase) ? `<span class="phase-chip-progress phase-chip-progress-unset">-</span>` : `<span class="phase-chip-progress"><span class="progress-track"><span style="width:${phase.progress}%"></span></span><small>${phase.progress}%</small></span>`}
     <span class="status-pill status-${slug(phase.status)}">${phase.status}</span>
     <span class="phase-chip-go" aria-hidden="true">${iconMarkup("arrow-right")}</span>
   </button>`;
@@ -3733,7 +3780,7 @@ function renderProjectPage(projectId) {
         <section class="project-page-section">
           <div class="section-heading-row"><div><span class="section-kicker">Execution</span><h2>Project Phases</h2></div><span class="detail-count">${project.phases.length} ${project.phases.length === 1 ? "phase" : "phases"}</span></div>
           ${project.phases.length
-            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p>${phase.objective ? `<p class="detail-phase-note">${phase.objective}</p>` : ""}<span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
+            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p>${phase.objective ? `<p class="detail-phase-note">${phase.objective}</p>` : ""}${!hasPhaseProgress(phase) ? `<p class="detail-phase-note detail-phase-unset">No progress recorded</p>` : `<div class="detail-phase-progress"><div class="progress-track"><span style="width:${phase.progress}%"></span></div><strong>${phase.progress}%</strong></div>`}<span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
             : `<div class="detail-phase-empty"><p>No phases recorded for this project yet.</p><button class="secondary-button" data-edit-phase="new" data-project-id="${project.id}" type="button">${iconMarkup("plus")}Add a phase</button></div>`}
         </section>
         ${projectAlignmentSection(project)}
@@ -6045,7 +6092,7 @@ function submitProject(event) {
     return;
   }
   elements.form.elements.dependsOn.setCustomValidity("");
-  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: data.subUnit !== ADD_NEW_VALUE && subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: data.subCategory === ADD_NEW_VALUE ? "" : String(data.subCategory || "").trim(), phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: data.subUnit !== ADD_NEW_VALUE && subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: data.subCategory === ADD_NEW_VALUE ? "" : String(data.subCategory || "").trim(), phases: readPhaseRows(), owner: data.owner, status: data.status, progress: phaseProgressRollup(readPhaseRows()) ?? Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -6608,6 +6655,10 @@ document.querySelector("#addPhaseButton").addEventListener("click", () => {
   updatePhaseEmptyState();
   refreshIcons();
   document.querySelector("#phaseRows .phase-row:last-child .phase-name")?.focus();
+});
+
+document.querySelector("#phaseRows").addEventListener("input", event => {
+  if (event.target.closest(".phase-progress, .phase-name")) updateProgressRollupNote();
 });
 
 document.querySelector("#phaseRows").addEventListener("click", event => {

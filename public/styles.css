@@ -982,7 +982,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* Phases: a repeatable set of stages inside the project form */
 .phase-section { display: flex; flex-direction: column; gap: 9px; }
-.phase-row { display: grid; grid-template-columns: 1.6fr .9fr .9fr 1fr 30px; gap: 8px; margin: 0; padding: 10px 11px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.phase-row { display: grid; grid-template-columns: 1.5fr .85fr .85fr .95fr .55fr 30px; gap: 8px; margin: 0; padding: 10px 11px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .phase-row legend { padding: 0 5px; color: var(--muted); font-size: var(--fs-100); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .phase-row .phase-remove { display: grid; align-self: end; width: 30px; height: 36px; place-items: center; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
 .phase-row .phase-remove:hover { color: var(--red); background: var(--red-soft); border-color: #e9c4c4; }
@@ -1007,6 +1007,11 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .detail-phase-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); }
 .detail-phase-empty p { margin: 0; color: var(--ink-soft); font-size: var(--fs-300); }
 .phase-row .phase-objective-field { grid-column: 1 / -1; }
+.detail-phase-card .detail-phase-progress { display: flex; align-items: center; gap: 8px; }
+.detail-phase-card .detail-phase-progress .progress-track { height: 7px; flex: 1; }
+.detail-phase-card .detail-phase-progress strong { font-family: "Manrope", sans-serif; font-size: var(--fs-200); font-weight: 800; }
+.detail-phase-card .detail-phase-unset { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
+.phase-rollup-note { display: block; margin-top: 4px; color: var(--green); font-size: var(--fs-100); font-weight: 700; }
 .phase-row .phase-objective-field small { margin-left: 5px; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
 .detail-phase-card .detail-phase-note { color: var(--ink-soft); font-size: var(--fs-200); line-height: 1.5; }
 .phase-row.phase-row-focused { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
@@ -1024,7 +1029,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .phase-strip-head strong { color: var(--ink-soft); font-family: "Manrope", sans-serif; font-size: var(--fs-100); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .phase-strip-head small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
 .phase-strip-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(262px, 1fr)); gap: 7px; }
-.phase-chip { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; color: inherit; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.phase-chip { display: grid; grid-template-columns: 22px minmax(0, 1fr) 62px auto auto; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; color: inherit; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
 .phase-chip:hover { border-color: var(--green); box-shadow: var(--shadow); }
 .phase-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .phase-chip-index { display: grid; place-items: center; width: 22px; height: 22px; color: var(--green); font-family: "Manrope", sans-serif; font-size: var(--fs-100); font-weight: 800; background: var(--green-soft); border-radius: var(--radius-xs); }
@@ -1032,6 +1037,10 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .phase-chip-text strong { overflow: hidden; font-size: var(--fs-200); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .phase-chip-text small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
 .phase-chip .status-pill { padding: 3px 7px; font-size: var(--fs-100); }
+.phase-chip-progress { display: flex; align-items: center; gap: 6px; }
+.phase-chip-progress .progress-track { width: 30px; height: 5px; flex: 0 0 auto; }
+.phase-chip-progress small { color: var(--ink-soft); font-size: var(--fs-100); font-weight: 700; }
+.phase-chip-progress-unset { color: var(--muted); font-size: var(--fs-100); font-weight: 700; text-align: center; }
 .phase-chip-go { display: inline-flex; color: var(--muted); }
 .phase-chip-go svg { width: 14px; }
 .phase-chip:hover .phase-chip-go { color: var(--green); }
