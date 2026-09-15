@@ -687,15 +687,34 @@ function hasPhaseProgress(phase) {
     && phase.progress !== undefined && Number.isFinite(Number(phase.progress));
 }
 
-// The project's progress is the total of its phases: each phase counts for an
-// equal share of the project, so a phase's own figure contributes that share.
-// Returns null when no phase records progress at all, in which case the project
-// keeps the progress recorded against it and nothing is overwritten.
+// A phase's span in days, inclusive of both ends. Null when it has no dates.
+function phaseDurationDays(phase) {
+  if (!phase || !phase.start || !phase.end) return null;
+  const start = new Date(phase.start).getTime();
+  const end = new Date(phase.end).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return Math.max(1, Math.round((end - start) / 86400000) + 1);
+}
+
+// The project's progress is the total of its phases, each weighted by how long
+// it runs: a phase that takes three months moves the project more than one
+// that takes three weeks. A phase with no dates has no span, so it is weighted
+// at the average of the dated phases rather than being left out of the total;
+// with no dated phases at all every phase counts equally.
+//
+// Returns null when no phase records progress, in which case the project keeps
+// the progress recorded against it and nothing is overwritten.
 function phaseProgressRollup(phases) {
   const list = Array.isArray(phases) ? phases : [];
   if (!list.length || !list.some(hasPhaseProgress)) return null;
-  const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
-  return Math.round(total / list.length);
+  const spans = list.map(phaseDurationDays);
+  const dated = spans.filter(span => span !== null);
+  const fallback = dated.length ? dated.reduce((sum, span) => sum + span, 0) / dated.length : 1;
+  const weights = spans.map(span => span === null ? fallback : span);
+  const span = weights.reduce((sum, weight) => sum + weight, 0);
+  const weighted = list.reduce((sum, phase, index) =>
+    sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0) * weights[index], 0);
+  return Math.round(weighted / span);
 }
 
 const LEGACY_PRIVACY_PORTAL = [
@@ -771,8 +790,17 @@ function consolidateUnifiedMessaging(list) {
   const status = live.length ? "In-flight"
     : ordered.every(stage => stage.status === "Completed") ? "Completed"
     : first.status;
-  // The phases carry their own progress, so the project's is their total.
-  const progress = phaseProgressRollup(ordered.map(stage => ({ progress: phaseProgressValue(stage.progress) })));
+  const phases = ordered.map(stage => ({
+    name: stage.name,
+    start: stage.start || "",
+    end: stage.end || "",
+    status: stage.status,
+    progress: phaseProgressValue(stage.progress),
+    objective: stage.objective === shared ? "" : stage.objective || ""
+  }));
+  // The phases carry their own progress, so the project's is their total,
+  // weighted by how long each phase runs.
+  const progress = phaseProgressRollup(phases);
   const project = {
     ...first,
     name: UMS_SUB_UNIT,
@@ -783,14 +811,7 @@ function consolidateUnifiedMessaging(list) {
     end: ordered.reduce((latest, stage) => stage.end && stage.end > latest ? stage.end : latest, first.end),
     milestoneDate: last.end || first.milestoneDate,
     approxCost: ordered.reduce((sum, stage) => sum + (Number(stage.approxCost) || 0), 0),
-    phases: ordered.map(stage => ({
-      name: stage.name,
-      start: stage.start || "",
-      end: stage.end || "",
-      status: stage.status,
-      progress: phaseProgressValue(stage.progress),
-      objective: stage.objective === shared ? "" : stage.objective || ""
-    }))
+    phases
   };
   const at = list.findIndex(isLegacyUmsStage);
   const index = kept.length && at >= 0 ? Math.min(at, kept.length) : kept.length;
@@ -1189,7 +1210,7 @@ function updateProgressRollupNote() {
   field.value = rolled;
   field.readOnly = true;
   note.hidden = false;
-  note.textContent = `Totalled from the phases below: ${rolled}%`;
+  note.textContent = `Totalled from the phases below, weighted by how long each runs: ${rolled}%`;
 }
 
 function updatePhaseEmptyState() {
