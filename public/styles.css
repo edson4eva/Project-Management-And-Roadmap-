@@ -1536,3 +1536,19 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .project-subcategory-table-heading strong, .project-subcategory-heading strong { color: var(--ink); font-size: var(--fs-200); font-weight: 700; }
 .project-subcategory-table-heading small, .project-subcategory-heading small { font-size: var(--fs-100); }
 .project-subcategory-table-heading div, .project-subcategory-heading { gap: 8px; }
+
+/* --- Naming a unit or category the dropdown does not have ---------------
+   The inline row sits directly under the select it extends, so it reads as
+   part of the same field rather than as a separate form. */
+.taxonomy-add-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: end; padding: 10px 11px; margin-top: -2px; background: var(--green-soft); border: 1px dashed var(--green); border-radius: var(--radius-sm); }
+.taxonomy-add-row label { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-200); font-weight: 600; }
+.taxonomy-add-row .secondary-button { padding: 6px 10px; font-size: var(--fs-200); }
+.taxonomy-add-row .text-button { padding-bottom: 7px; font-size: var(--fs-200); }
+.taxonomy-add-error { grid-column: 1 / -1; margin: 0; color: #a52834; font-size: var(--fs-100); font-weight: 600; }
+.taxonomy-add-error:empty { display: none; }
+#projectForm optgroup { color: var(--ink-soft); font-size: var(--fs-100); font-style: normal; font-weight: 700; }
+#projectForm optgroup option { color: var(--ink); font-size: var(--fs-200); font-weight: 400; }
+
+@media (max-width: 620px) { .taxonomy-add-row { grid-template-columns: 1fr; } }
+
+.taxonomy-locked { padding: 2px 8px; color: var(--muted); background: var(--line-soft); border-radius: 99px; font-size: var(--fs-100); font-weight: 700; }

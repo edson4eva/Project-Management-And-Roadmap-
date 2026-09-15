@@ -545,6 +545,10 @@
         <div id="workspacePanel"></div>
       </section>
       <section>
+        <h3>Units and categories added here</h3>
+        <div id="taxonomyList"></div>
+      </section>
+      <section>
         <h3>Custom fields</h3>
         <div id="customFieldList"></div>
         <div class="settings-add">
@@ -623,8 +627,20 @@
         <div class="form-section-title full-field"><span>01</span><div><strong>Project identity</strong><small>Information shown across portfolio views</small></div></div>
         <label>Project name<input name="name" required maxlength="60" placeholder="e.g. Partner portal launch"></label>
         <label>Branch Unit<select name="unit" required></select></label>
-        <label id="subUnitField">Unit<select name="subUnit"></select></label>
+<label id="subUnitField">Unit<select name="subUnit"></select></label>
+              <div class="taxonomy-add-row hidden full-field" id="newUnitRow" data-level="unit">
+                <label>New unit name<input maxlength="60" placeholder="e.g. UIAM - Service Operations"></label>
+                <button class="secondary-button" data-add-taxonomy="unit" type="button"><i data-lucide="plus"></i>Add unit</button>
+                <button class="text-button" data-cancel-taxonomy="unit" type="button">Cancel</button>
+                <p class="taxonomy-add-error" role="alert"></p>
+              </div>
               <label id="subCategoryField">Category<select name="subCategory"></select></label>
+              <div class="taxonomy-add-row hidden full-field" id="newCategoryRow" data-level="category">
+                <label>New category name<input maxlength="60" placeholder="e.g. Credential Verification"></label>
+                <button class="secondary-button" data-add-taxonomy="category" type="button"><i data-lucide="plus"></i>Add category</button>
+                <button class="text-button" data-cancel-taxonomy="category" type="button">Cancel</button>
+                <p class="taxonomy-add-error" role="alert"></p>
+              </div>
         <label>Team<select name="team" required aria-describedby="teamFieldHint"></select><small class="field-hint" id="teamFieldHint">Teams come from the Team directory in the left navigation</small></label>
         <label>Owner<input name="owner" required maxlength="40" placeholder="Full name"></label>
         <label class="full-field">Objective<textarea name="objective" rows="3" required maxlength="180" placeholder="What measurable outcome will this project deliver?"></textarea></label>

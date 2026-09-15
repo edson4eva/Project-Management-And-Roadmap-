@@ -3,7 +3,7 @@ const AS_OF_DATE = new Date("2025-09-10T12:00:00");
 const AS_OF_ISO = "2025-09-10";
 // Bumped when the seed portfolio changes shape, so a browser holding the previous
 // seed picks up the new one instead of silently keeping stale projects.
-const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1", scoreModel: "pb-score-model-v1", ideas: "pb-ideas-v1", feedback: "pb-feedback-v1", releases: "pb-releases-v1", views: "pb-saved-views-v1", fields: "pb-custom-fields-v1", notes: "pb-project-notes-v1", history: "pb-project-history-v1", specs: "pb-project-specs-v1" };
+const STORAGE = { projects: "pb-projects-v2", teams: "pb-teams-v2", roadmap: "pb-roadmap-v2", collapsed: "pb-collapsed-units-v1", labelWidth: "pb-timeline-label-width-v1", viewport: "pb-timeline-viewport-v1", scoreModel: "pb-score-model-v1", ideas: "pb-ideas-v1", feedback: "pb-feedback-v1", releases: "pb-releases-v1", views: "pb-saved-views-v1", fields: "pb-custom-fields-v1", notes: "pb-project-notes-v1", history: "pb-project-history-v1", specs: "pb-project-specs-v1", taxonomy: "pb-taxonomy-v1" };
 // ---------------------------------------------------------------------------
 // Strategy alignment, dependencies and prioritization.
 // Every figure below is computed from the project records - a project's goal
@@ -66,7 +66,7 @@ function loadScoreModel() {
 
 function saveScoreModel() {
   localStorage.setItem(STORAGE.scoreModel, scoreModel);
-  pushRecords("settings", (() => ({ scoreModel }))(), "the prioritization model");
+  pushRecords("settings", { scoreModel, taxonomy: customTaxonomy }, "the prioritization model");
 }
 
 // Adds the alignment fields to a stored project without inventing values:
@@ -188,8 +188,118 @@ const unitSubCategories = {
   "Platforms Operations": ["Privacy Portal"]
 };
 
+// ---------------------------------------------------------------------------
+// Units and categories a workspace adds for itself.
+//
+// The taxonomy that came from the roadmap deck is fixed in code, because it is
+// a transcription of the deck. Anything a workspace needs beyond it is kept
+// here instead of being hard-coded, so the dropdowns can grow without a code
+// change - and so a name someone typed is never silently dropped.
+//
+// Keyed exactly as the declared lists are: units by branch unit, categories by
+// "branch unit::unit", so the same label under a different parent stays
+// separate.
+// ---------------------------------------------------------------------------
+function loadCustomTaxonomy() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE.taxonomy));
+    return normalizeTaxonomy(saved);
+  } catch {
+    return { units: {}, categories: {} };
+  }
+}
+
+function normalizeTaxonomy(saved) {
+  // Only strings are names. Anything else is dropped rather than coerced -
+  // String(null) is the truthy "null", which would otherwise become a unit.
+  const dedupe = list => {
+    const seen = new Set();
+    return list.filter(name => {
+      const key = name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const clean = source => Object.fromEntries(Object.entries(source && typeof source === "object" && !Array.isArray(source) ? source : {})
+    .map(([key, list]) => [key, dedupe((Array.isArray(list) ? list : [])
+      .filter(name => typeof name === "string")
+      .map(name => name.trim().slice(0, 60))
+      .filter(Boolean))])
+    .filter(([, list]) => list.length));
+  return { units: clean(saved?.units), categories: clean(saved?.categories) };
+}
+
+function saveCustomTaxonomy() {
+  localStorage.setItem(STORAGE.taxonomy, JSON.stringify(customTaxonomy));
+  pushRecords("settings", { scoreModel, taxonomy: customTaxonomy }, "the unit and category lists");
+}
+
+// Declared first, then whatever this workspace added, so the deck's own order
+// is preserved and additions appear after it.
+function customUnitsFor(branchUnit) {
+  return customTaxonomy.units[branchUnit] || [];
+}
+
+function customCategoriesFor(branchUnit, unit) {
+  return customTaxonomy.categories[`${branchUnit}::${unit}`] || [];
+}
+
+function taxonomyNameTaken(existing, name) {
+  return existing.some(item => item.toLowerCase() === name.trim().toLowerCase());
+}
+
+// Returns the reason it was refused, or "" when it was added. The caller shows
+// the reason rather than the name disappearing without explanation.
+function addCustomUnit(branchUnit, rawName) {
+  const name = String(rawName || "").trim().slice(0, 60);
+  if (!name) return "Give the unit a name.";
+  if (!projectUnits.includes(branchUnit)) return "Choose a branch unit first.";
+  if (taxonomyNameTaken(subCategoriesFor(branchUnit), name)) return `${branchUnit} already has a unit called "${name}".`;
+  customTaxonomy.units[branchUnit] = [...customUnitsFor(branchUnit), name];
+  saveCustomTaxonomy();
+  return "";
+}
+
+function addCustomCategory(branchUnit, unit, rawName) {
+  const name = String(rawName || "").trim().slice(0, 60);
+  if (!name) return "Give the category a name.";
+  if (!unit) return "Choose a unit first.";
+  if (taxonomyNameTaken(subCategoryOptionsFor(branchUnit, unit), name)) return `${unit} already has a category called "${name}".`;
+  const key = `${branchUnit}::${unit}`;
+  customTaxonomy.categories[key] = [...customCategoriesFor(branchUnit, unit), name];
+  saveCustomTaxonomy();
+  return "";
+}
+
+// A name is only removable while nothing is filed under it, so removing one
+// can never orphan a project.
+function unitInUse(branchUnit, unit) {
+  return projects.some(project => project.unit === branchUnit && project.subUnit === unit);
+}
+
+function categoryInUse(branchUnit, unit, category) {
+  return projects.some(project => project.unit === branchUnit && project.subUnit === unit && project.subCategory === category);
+}
+
+function removeCustomUnit(branchUnit, unit) {
+  if (unitInUse(branchUnit, unit)) return `Projects are still filed under "${unit}".`;
+  customTaxonomy.units[branchUnit] = customUnitsFor(branchUnit).filter(name => name !== unit);
+  delete customTaxonomy.categories[`${branchUnit}::${unit}`];
+  saveCustomTaxonomy();
+  return "";
+}
+
+function removeCustomCategory(branchUnit, unit, category) {
+  if (categoryInUse(branchUnit, unit, category)) return `Projects are still filed under "${category}".`;
+  const key = `${branchUnit}::${unit}`;
+  customTaxonomy.categories[key] = customCategoriesFor(branchUnit, unit).filter(name => name !== category);
+  saveCustomTaxonomy();
+  return "";
+}
+
 function subCategoriesFor(unit) {
-  return unitSubCategories[unit] || [];
+  return [...(unitSubCategories[unit] || []), ...customUnitsFor(unit)];
 }
 
 // Sub-categories belong to a unit AND a category, because the same label can
@@ -215,7 +325,7 @@ const categorySubCategories = {
 };
 
 function subCategoryOptionsFor(unit, category) {
-  return categorySubCategories[`${unit}::${category}`] || [];
+  return [...(categorySubCategories[`${unit}::${category}`] || []), ...customCategoriesFor(unit, category)];
 }
 
 function hasSubCategories(unit, category) {
@@ -417,6 +527,7 @@ function saveRoadmapStrategy() {
 }
 
 let roadmapStrategy = loadRoadmapStrategy();
+let customTaxonomy = loadCustomTaxonomy();
 let scoreModel = loadScoreModel();
 let ideas = loadIdeas();
 let feedbackEntries = loadFeedback();
@@ -985,23 +1096,107 @@ function populateProjectUnitOptions(selected) {
   if (projectUnits.includes(selected)) select.value = selected;
 }
 
+// Both levels use the same control: the existing names, then a final entry
+// that turns the dropdown into a place to name something new. The declared and
+// the workspace's own names are shown in separate groups so it is clear which
+// came from the roadmap deck and which this workspace added.
+const ADD_NEW_VALUE = "__add_new__";
+
+function taxonomySelectMarkup(declared, custom, selected) {
+  const option = name => `<option${name === selected ? " selected" : ""}>${name}</option>`;
+  return `<option value="">None</option>`
+    + (declared.length ? `<optgroup label="From the roadmap deck">${declared.map(option).join("")}</optgroup>` : "")
+    + (custom.length ? `<optgroup label="Added in this workspace">${custom.map(option).join("")}</optgroup>` : "")
+    + `<option value="${ADD_NEW_VALUE}">+ Add a name that is not listed...</option>`;
+}
+
 function populateProjectSubUnitOptions(unit, selected) {
-  const options = subCategoriesFor(unit);
+  const declared = unitSubCategories[unit] || [];
+  const custom = customUnitsFor(unit);
+  const options = [...declared, ...custom];
   const select = elements.form.elements.subUnit;
-  select.innerHTML = `<option value="">None</option>${options.map(option => `<option>${option}</option>`).join("")}`;
+  select.innerHTML = taxonomySelectMarkup(declared, custom, options.includes(selected) ? selected : "");
   select.value = options.includes(selected) ? selected : "";
-  // a unit with no categories should not show an empty control
-  document.querySelector("#subUnitField").hidden = options.length === 0;
+  // The control always shows now: even a branch unit with no units of its own
+  // needs the way to add the first one.
+  document.querySelector("#subUnitField").hidden = false;
+  closeTaxonomyAdder("unit");
 }
 
 // The sub-category list depends on the category, so it is repopulated whenever
 // the category changes and hidden when the chosen category has none.
 function populateProjectSubCategoryOptions(unit, category, selected) {
-  const options = subCategoryOptionsFor(unit, category);
+  const declared = categorySubCategories[`${unit}::${category}`] || [];
+  const custom = customCategoriesFor(unit, category);
+  const options = [...declared, ...custom];
   const select = elements.form.elements.subCategory;
-  select.innerHTML = `<option value="">None</option>${options.map(option => `<option>${option}</option>`).join("")}`;
+  select.innerHTML = taxonomySelectMarkup(declared, custom, options.includes(selected) ? selected : "");
   select.value = options.includes(selected) ? selected : "";
-  document.querySelector("#subCategoryField").hidden = options.length === 0;
+  // A category only makes sense under a unit, so the control appears once one
+  // is chosen - and then it offers adding the first category too.
+  document.querySelector("#subCategoryField").hidden = !category;
+  closeTaxonomyAdder("category");
+}
+
+// --- naming something the dropdown does not have -------------------------
+
+function taxonomyAdderFor(level) {
+  return document.querySelector(level === "unit" ? "#newUnitRow" : "#newCategoryRow");
+}
+
+function closeTaxonomyAdder(level) {
+  const row = taxonomyAdderFor(level);
+  if (!row) return;
+  row.classList.add("hidden");
+  row.querySelector("input").value = "";
+  row.querySelector(".taxonomy-add-error").textContent = "";
+}
+
+function openTaxonomyAdder(level) {
+  const row = taxonomyAdderFor(level);
+  if (!row) return;
+  row.classList.remove("hidden");
+  const input = row.querySelector("input");
+  input.focus();
+  input.select();
+}
+
+// Adding commits the name to this workspace's list and selects it, so the
+// project being filled in lands under it immediately.
+function commitTaxonomyName(level) {
+  const row = taxonomyAdderFor(level);
+  const input = row.querySelector("input");
+  const error = row.querySelector(".taxonomy-add-error");
+  const branchUnit = elements.form.elements.unit.value;
+  const name = input.value.trim();
+  const reason = level === "unit"
+    ? addCustomUnit(branchUnit, name)
+    : addCustomCategory(branchUnit, elements.form.elements.subUnit.value, name);
+  if (reason) {
+    error.textContent = reason;
+    input.focus();
+    return;
+  }
+  if (level === "unit") {
+    populateProjectSubUnitOptions(branchUnit, name);
+    populateProjectSubCategoryOptions(branchUnit, name, "");
+  } else {
+    populateProjectSubCategoryOptions(branchUnit, elements.form.elements.subUnit.value, name);
+  }
+  populateTeamFilters();
+  showToast(`"${name}" added to this workspace's ${level === "unit" ? "units" : "categories"}`);
+}
+
+// Choosing the "add a name" entry opens the field; choosing anything else
+// closes it, so the form never holds the placeholder value.
+function handleTaxonomySelect(level, select) {
+  if (select.value === ADD_NEW_VALUE) {
+    select.value = "";
+    openTaxonomyAdder(level);
+    return true;
+  }
+  closeTaxonomyAdder(level);
+  return false;
 }
 
 function populateProjectTeamOptions(selected) {
@@ -2610,6 +2805,40 @@ function applyLinkedScope() {
   return true;
 }
 
+// Names added here can be removed again, so a typo is not permanent. Only the
+// workspace's own additions are listed: the deck's taxonomy is not editable
+// from the app, because it is a transcription of the deck.
+function renderTaxonomySettings() {
+  const host = document.querySelector("#taxonomyList");
+  if (!host) return;
+  const rows = [];
+  Object.entries(customTaxonomy.units).forEach(([branchUnit, units]) => {
+    units.forEach(unit => rows.push({ level: "unit", branchUnit, unit, label: unit, parent: branchUnit, used: unitInUse(branchUnit, unit) }));
+  });
+  Object.entries(customTaxonomy.categories).forEach(([key, categories]) => {
+    const [branchUnit, unit] = key.split("::");
+    categories.forEach(category => rows.push({ level: "category", branchUnit, unit, category, label: category, parent: `${branchUnit} / ${unit}`, used: categoryInUse(branchUnit, unit, category) }));
+  });
+  host.innerHTML = rows.length
+    ? rows.map(row => `<div class="settings-row">
+        <div><strong>${row.label}</strong><small>${row.level === "unit" ? "Unit" : "Category"} under ${row.parent}${row.used ? " - in use" : ""}</small></div>
+        ${row.used
+          ? `<span class="taxonomy-locked" title="Move or delete those projects first">In use</span>`
+          : `<button class="text-button danger-text" data-remove-taxonomy="${row.level}" data-branch="${row.branchUnit}" data-unit="${row.unit}" data-name="${row.label}" type="button">Remove</button>`}
+      </div>`).join("")
+    : `<p class="alignment-empty">No units or categories have been added here. The ones from the roadmap deck are fixed, and anything you add on a project form appears here so it can be removed again.</p>`;
+}
+
+function removeTaxonomyRow(button) {
+  const { removeTaxonomy: level, branch, unit, name } = button.dataset;
+  const reason = level === "unit" ? removeCustomUnit(branch, name) : removeCustomCategory(branch, unit, name);
+  if (reason) { showToast(reason); return; }
+  renderTaxonomySettings();
+  populateTeamFilters();
+  renderAll();
+  showToast(`"${name}" removed`);
+}
+
 function renderCustomFieldSettings() {
   const host = document.querySelector("#customFieldList");
   host.innerHTML = customFields.length
@@ -2625,6 +2854,7 @@ function renderCustomFieldSettings() {
 
 function openSettingsModal() {
   renderCustomFieldSettings();
+  renderTaxonomySettings();
   document.querySelector("#settingsModal").showModal();
   refreshIcons();
 }
@@ -2849,7 +3079,11 @@ const WORKSPACE_KINDS = {
   history: { label: "change history", apply: data => { projectHistory = data; } },
   fields: { label: "custom fields", apply: data => { customFields = data.map(normalizeCustomField); } },
   views: { label: "saved views", apply: data => { savedViews = data; } },
-  settings: { label: "workspace settings", apply: data => { scoreModel = SCORE_MODELS[data?.scoreModel] ? data.scoreModel : DEFAULT_SCORE_MODEL; } }
+  settings: { label: "workspace settings", apply: data => {
+    scoreModel = SCORE_MODELS[data?.scoreModel] ? data.scoreModel : DEFAULT_SCORE_MODEL;
+    customTaxonomy = normalizeTaxonomy(data?.taxonomy);
+    localStorage.setItem(STORAGE.taxonomy, JSON.stringify(customTaxonomy));
+  } }
 };
 const WORKSPACE_LOCAL_KEY = "pb-active-workspace-v1";
 
@@ -3004,7 +3238,7 @@ async function publishLocalToWorkspace() {
   const payloads = {
     projects, teams: teamDirectory, strategy: roadmapStrategy, ideas, feedback: feedbackEntries,
     releases, specs: projectSpecs, notes: projectNotes, history: projectHistory,
-    fields: customFields, views: savedViews, settings: { scoreModel }
+    fields: customFields, views: savedViews, settings: { scoreModel, taxonomy: customTaxonomy }
   };
   for (const [kind, data] of Object.entries(payloads)) {
     try {
@@ -5665,7 +5899,7 @@ function submitProject(event) {
     return;
   }
   elements.form.elements.dependsOn.setCustomValidity("");
-  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: subCategoryOptionsFor(data.unit, data.subUnit).includes(data.subCategory) ? data.subCategory : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
+  const projectData = { goalIds: alignment.goalIds, dependsOn: alignment.dependsOn, scoring: alignment.scoring, releaseId: alignment.releaseId, custom: alignment.custom, name: data.name, code: initials(data.name), team: directoryTeamNames().includes(data.team) ? data.team : defaultTeamForUnit(data.unit), unit: data.unit, subUnit: data.subUnit !== ADD_NEW_VALUE && subCategoriesFor(data.unit).includes(data.subUnit) ? data.subUnit : "", subCategory: data.subCategory !== ADD_NEW_VALUE && subCategoryOptionsFor(data.unit, data.subUnit).includes(data.subCategory) ? data.subCategory : "", phases: readPhaseRows(), owner: data.owner, status: data.status, progress: Number(data.progress), start: data.start, end: data.end, risk: data.risk, priority: data.priority, approxCost: Number(data.approxCost), objective: data.objective, milestone: data.milestone, milestoneDate: data.milestoneDate, scheduleVariance: Number(data.scheduleVariance), members, memberNames: existing && !existing.memberNames && !contributorNames.length ? undefined : memberNames };
   const savedProject = existing || { id: Date.now(), ...projectData };
   if (existing) Object.assign(existing, projectData);
   else projects.push(savedProject);
@@ -5762,6 +5996,8 @@ document.addEventListener("click", event => {
   }
   const deleteFieldButton = event.target.closest("[data-delete-field]");
   if (deleteFieldButton) deleteCustomField(deleteFieldButton.dataset.deleteField);
+  const removeTaxonomyButton = event.target.closest("[data-remove-taxonomy]");
+  if (removeTaxonomyButton) removeTaxonomyRow(removeTaxonomyButton);
   const editSpecButton = event.target.closest("[data-edit-spec]");
   if (editSpecButton) openSpecModal(editSpecButton.dataset.editSpec);
   const addNoteButton = event.target.closest("[data-add-note]");
@@ -5931,7 +6167,24 @@ document.querySelector("#roadmapScoreModel").addEventListener("change", event =>
   if (elements.modal.open) renderProjectScoreFields(projectBeingEdited ? projects.find(item => item.id === projectBeingEdited)?.scoring : readScoreFields());
 });
 elements.form.elements.subUnit.addEventListener("change", event => {
+  if (handleTaxonomySelect("unit", event.target)) return;
   populateProjectSubCategoryOptions(elements.form.elements.unit.value, event.target.value, "");
+});
+elements.form.elements.subCategory.addEventListener("change", event => {
+  handleTaxonomySelect("category", event.target);
+});
+document.querySelector("#projectForm").addEventListener("click", event => {
+  const add = event.target.closest("[data-add-taxonomy]");
+  if (add) commitTaxonomyName(add.dataset.addTaxonomy);
+  const cancel = event.target.closest("[data-cancel-taxonomy]");
+  if (cancel) closeTaxonomyAdder(cancel.dataset.cancelTaxonomy);
+});
+document.querySelector("#projectForm").addEventListener("keydown", event => {
+  const row = event.target.closest(".taxonomy-add-row");
+  if (!row || event.key !== "Enter") return;
+  // Enter in the name field adds the name rather than submitting the project.
+  event.preventDefault();
+  commitTaxonomyName(row.dataset.level);
 });
 document.querySelector("#projectScoreFields").addEventListener("input", updateScorePreview);
 // --- board drag and drop: a drop is a status edit -------------------------
