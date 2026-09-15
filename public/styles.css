@@ -1020,7 +1020,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .phase-strip-head svg { width: 13px; flex: 0 0 auto; color: var(--green); }
 .phase-strip-head strong { color: var(--ink-soft); font-family: "Manrope", sans-serif; font-size: var(--fs-100); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .phase-strip-head small { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
-.phase-strip-chips { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.phase-strip-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(262px, 1fr)); gap: 7px; }
 .phase-chip { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; align-items: center; gap: 9px; width: 100%; padding: 8px 9px; font: inherit; color: inherit; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
 .phase-chip:hover { border-color: var(--green); box-shadow: var(--shadow); }
 .phase-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
