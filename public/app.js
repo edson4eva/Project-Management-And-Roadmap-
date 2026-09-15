@@ -1905,12 +1905,61 @@ function projectRow(project, index) {
   </tr>`;
 }
 
+// A project that records phases gets its phases as their own subsection on the
+// overview, directly under the project, so the standing of each phase is
+// readable without opening anything. Every value shown is read back from the
+// project's own phase records - name, dates and status - and nothing is
+// derived or filled in. Each phase opens the project page scrolled to that
+// phase, where it can be read and edited.
+function phaseChipMarkup(project, phase, index) {
+  const dates = phase.start && phase.end
+    ? `${formatDate(phase.start, { month: "short", day: "numeric", year: "numeric" })} - ${formatDate(phase.end, { month: "short", day: "numeric", year: "numeric" })}`
+    : "No dates set";
+  return `<button class="phase-chip phase-chip-${slug(phase.status)}" data-phase-jump="${project.id}" data-phase-index="${index}" type="button" aria-label="Open ${phase.name} on ${project.name}">
+    <span class="phase-chip-index">${index + 1}</span>
+    <span class="phase-chip-text"><strong>${phase.name}</strong><small>${dates}</small></span>
+    <span class="status-pill status-${slug(phase.status)}">${phase.status}</span>
+    <span class="phase-chip-go" aria-hidden="true">${iconMarkup("arrow-right")}</span>
+  </button>`;
+}
+
+function phaseStripMarkup(project) {
+  const phases = Array.isArray(project.phases) ? project.phases : [];
+  if (!phases.length) return "";
+  return `<div class="phase-strip">
+    <div class="phase-strip-head">${iconMarkup("layers")}<strong>Phases</strong><small>${phases.length} recorded</small></div>
+    <div class="phase-strip-chips">${phases.map((phase, index) => phaseChipMarkup(project, phase, index)).join("")}</div>
+  </div>`;
+}
+
+// The table needs the strip in a row of its own so it can span the columns.
+function projectPhaseRow(project) {
+  const strip = phaseStripMarkup(project);
+  return strip ? `<tr class="project-phase-table-row"><td colspan="8">${strip}</td></tr>` : "";
+}
+
+// Opens the project page and settles on the phase that was clicked. The page
+// scrolls itself to the top first, so this waits for that before moving to the
+// phase card and highlighting it.
+function openProjectPhase(projectId, index) {
+  renderProjectPage(projectId);
+  window.setTimeout(() => {
+    const card = document.querySelectorAll("#projectDetailContent .detail-phase-card")[index];
+    if (!card) return;
+    document.querySelectorAll(".detail-phase-card-focused").forEach(item => item.classList.remove("detail-phase-card-focused"));
+    card.classList.add("detail-phase-card-focused");
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.focus({ preventScroll: true });
+  }, 240);
+}
+
 function projectCard(project, index) {
   return `<article class="project-card open-project-page" data-id="${project.id}" tabindex="0" role="button" aria-label="Open ${project.name} details page">
     <div class="project-card-top"><span class="project-icon ${colors[index % colors.length]}">${initials(project.name)}</span><span class="status-pill status-${slug(project.status)}">${project.status}</span></div>
     <h3>${project.name}</h3><p>${project.objective}</p>
     <div class="project-card-unit"><span>${iconMarkup("building-2")}</span><div><small>Branch Unit</small><strong>${project.unit}</strong></div></div>
     <div class="project-card-progress"><div class="progress-track"><span style="width:${project.progress}%"></span></div><strong>${project.progress}%</strong></div>
+    ${phaseStripMarkup(project)}
     <div class="project-card-meta"><div class="owner-cell"><span class="avatar">${initials(project.owner)}</span><span>${project.owner}</span></div><span class="icon-button subtle" aria-hidden="true">${iconMarkup("arrow-up-right")}</span></div>
   </article>`;
 }
@@ -3782,7 +3831,7 @@ function renderProjects() {
   const ordered = [...projectUnits, ...[...byUnit.keys()].filter(unit => !projectUnits.includes(unit))];
   const grouped = ordered.filter(unit => byUnit.has(unit)).map(unit => [unit, byUnit.get(unit)]);
   elements.projectCount.textContent = `(${filtered.length})`;
-  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="8"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<tr class="project-subcategory-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nested.items.map(project => projectRow(project, projects.indexOf(project))).join("")}`).join("")}`).join("")}`).join("");
+  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="8"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<tr class="project-subcategory-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nested.items.map(project => `${projectRow(project, projects.indexOf(project))}${projectPhaseRow(project)}`).join("")}`).join("")}`).join("")}`).join("");
   elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Branch Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<div class="project-subcategory-heading">${iconMarkup("corner-down-right")}<strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${nested.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}`).join("")}</section>`).join("");
   const empty = filtered.length === 0;
   elements.emptyState.classList.toggle("hidden", !empty);
@@ -6002,6 +6051,11 @@ function renderAll() {
 document.addEventListener("click", event => {
   const viewButton = event.target.closest("[data-view]");
   if (viewButton) switchView(viewButton.dataset.view);
+  const phaseJump = event.target.closest("[data-phase-jump]");
+  if (phaseJump) {
+    openProjectPhase(phaseJump.dataset.phaseJump, Number(phaseJump.dataset.phaseIndex));
+    return;
+  }
   const projectButton = event.target.closest(".open-project");
   if (projectButton && suppressNextBarClick) { suppressNextBarClick = false; return; }
   if (projectButton) renderDrawer(projectButton.dataset.id);
