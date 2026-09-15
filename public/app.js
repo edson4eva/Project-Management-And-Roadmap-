@@ -5924,8 +5924,32 @@ function submitProject(event) {
   populateFiscalYearFilters();
   renderAll();
   if (existing) renderProjectPage(existing.id);
-  showToast(existing ? `${data.name} updated` : `${data.name} added to the portfolio`);
+  // Only announce the plain outcome when the project is actually on screen;
+  // otherwise revealSavedProject says what it had to change to show it.
+  if (!revealSavedProject(savedProject, !existing)) {
+    showToast(existing ? `${data.name} updated` : `${data.name} added to the portfolio`);
+  }
   projectBeingEdited = null;
+}
+
+// A save that lands outside the view is the same as a save that did nothing,
+// as far as the person looking at the screen can tell. So after saving, if the
+// project would not be visible, the view moves to where it is and says so
+// rather than leaving an empty space behind.
+function revealSavedProject(project, isNew) {
+  const reasons = [];
+  if (!projectOverlapsFiscalYear(project)) {
+    const year = getFiscalYear(new Date(`${project.start}T12:00:00`));
+    reasons.push(`the fiscal year to ${fiscalYearLabel(year)}`);
+    setFiscalYear(year);
+  }
+  if (!matchesProjectScope(project)) {
+    reasons.push("the filters");
+    clearProjectScope();
+  }
+  if (!reasons.length) return false;
+  showToast(`${isNew ? "Added" : "Saved"} "${project.name}" - moved ${reasons.join(" and ")} so you can see it`);
+  return true;
 }
 
 function showToast(message) {
