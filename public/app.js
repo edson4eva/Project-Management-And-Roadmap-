@@ -1160,13 +1160,13 @@ function phaseRowMarkup(phase = {}) {
   const options = projectStatuses.map(status => `<option${status === phase.status ? " selected" : ""}>${status}</option>`).join("");
   return `<fieldset class="phase-row">
     <legend>Phase</legend>
-    <label>Name<input class="phase-name" maxlength="60" value="${(phase.name || "").replace(/"/g, "&quot;")}" placeholder="e.g. Discovery"></label>
-    <label>Start<input class="phase-start" type="date" value="${phase.start || ""}"></label>
-    <label>End<input class="phase-end" type="date" value="${phase.end || ""}"></label>
-    <label>Status<select class="phase-status">${options}</select></label>
-    <label>Progress <small>%</small><input class="phase-progress" type="number" min="0" max="100" value="${hasPhaseProgress(phase) ? phase.progress : ""}" placeholder="-"></label>
+    <label class="phase-field phase-name-field">Name<input class="phase-name" maxlength="60" value="${(phase.name || "").replace(/"/g, "&quot;")}" placeholder="e.g. Discovery"></label>
+    <label class="phase-field phase-start-field">Start<input class="phase-start" type="date" value="${phase.start || ""}"></label>
+    <label class="phase-field phase-end-field">End<input class="phase-end" type="date" value="${phase.end || ""}"></label>
+    <label class="phase-field phase-status-field">Status<select class="phase-status">${options}</select></label>
+    <label class="phase-field phase-progress-field">This phase's progress <small>%</small><input class="phase-progress" type="number" min="0" max="100" value="${hasPhaseProgress(phase) ? phase.progress : ""}" placeholder="-"></label>
     <button class="phase-remove" data-remove-phase type="button" aria-label="Remove this phase" title="Remove this phase">${iconMarkup("trash-2")}</button>
-    <label class="phase-objective-field">Description <small>optional</small><input class="phase-objective" maxlength="400" value="${(phase.objective || "").replace(/"/g, "&quot;")}" placeholder="What this phase covers"></label>
+    <label class="phase-field phase-objective-field">Description <small>optional</small><input class="phase-objective" maxlength="400" value="${(phase.objective || "").replace(/"/g, "&quot;")}" placeholder="What this phase covers"></label>
   </fieldset>`;
 }
 
@@ -1185,20 +1185,25 @@ function updateProgressRollupNote() {
   const field = elements.form.elements.progress;
   const phases = readPhaseRows();
   const rolled = phaseProgressRollup(phases);
-  if (rolled !== null) {
-    field.value = rolled;
-    field.readOnly = true;
-    note.hidden = false;
-    note.className = "phase-rollup-note";
-    note.textContent = `Combined average of the ${phases.length} phases below: ${rolled}%`;
+  if (!phases.length) {
+    field.readOnly = false;
+    note.hidden = true;
+    note.textContent = "";
     return;
   }
-  field.readOnly = false;
-  note.hidden = phases.length === 0;
-  note.className = "phase-rollup-note phase-rollup-hint";
-  note.textContent = phases.length
-    ? "This is the whole project, not a phase. Put each phase's own figure in its Progress box below and this becomes their combined average."
-    : "";
+  // With phases present this figure is theirs, so it is never typed here: that
+  // is how a percentage meant for one phase used to end up on the whole
+  // project, above all of them.
+  field.readOnly = true;
+  note.hidden = false;
+  if (rolled === null) {
+    note.className = "phase-rollup-note phase-rollup-hint";
+    note.textContent = `No phase figures entered yet, so this is still the ${field.value}% recorded against the project. Put each phase's own figure in its "This phase's progress" box below and this becomes their combined average.`;
+    return;
+  }
+  field.value = rolled;
+  note.className = "phase-rollup-note";
+  note.textContent = `Combined average of the ${phases.length} phases below: ${rolled}%`;
 }
 
 function updatePhaseEmptyState() {
@@ -5826,6 +5831,9 @@ function openEditProjectModal(projectId) {
   populateProjectTeamOptions(project.team);
   const values = { name: project.name, unit: project.unit, team: project.team, subUnit: project.subUnit || "", owner: project.owner, objective: project.objective, start: project.start, end: project.end, status: project.status, progress: project.progress, priority: project.priority, risk: project.risk, approxCost: project.approxCost ?? "", scheduleVariance: scheduleVariance(project), contributors: project.memberNames?.filter(name => name.toLowerCase() !== project.owner.toLowerCase()).join(", ") || "", milestone: project.milestone, milestoneDate: project.milestoneDate };
   Object.entries(values).forEach(([field, value]) => { elements.form.elements[field].value = value; });
+  // The phase rows are built before these values land, so the overall progress
+  // note is refreshed here to quote the figure the field actually holds.
+  updateProgressRollupNote();
   document.querySelector("#projectModalKicker").textContent = "Project management";
   document.querySelector("#projectModalTitle").textContent = `Edit ${project.name}`;
   document.querySelector("#saveProjectButton span").textContent = "Save changes";
@@ -6646,9 +6654,10 @@ document.addEventListener("click", event => {
   row.classList.add("phase-row-focused");
   row.scrollIntoView({ behavior: "smooth", block: "center" });
   // Arriving from the card's progress lands on that phase's own figure.
-  const field = event.target.closest("[data-phase-field]")?.dataset.phaseField === "progress"
-    ? row.querySelector(".phase-progress")
-    : row.querySelector(".phase-name");
+  const wantsProgress = event.target.closest("[data-phase-field]")?.dataset.phaseField === "progress";
+  const field = wantsProgress ? row.querySelector(".phase-progress") : row.querySelector(".phase-name");
+  document.querySelectorAll(".phase-field-focused").forEach(item => item.classList.remove("phase-field-focused"));
+  field?.closest(".phase-field")?.classList.add("phase-field-focused");
   field?.focus();
   field?.select?.();
 });

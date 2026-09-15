@@ -982,7 +982,7 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 
 /* Phases: a repeatable set of stages inside the project form */
 .phase-section { display: flex; flex-direction: column; gap: 9px; }
-.phase-row { display: grid; grid-template-columns: 1.5fr .85fr .85fr .95fr .55fr 30px; gap: 8px; margin: 0; padding: 10px 11px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.phase-row { display: grid; grid-template-columns: 1.5fr .85fr .85fr .95fr 122px 30px; gap: 8px; margin: 0; padding: 10px 11px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .phase-row legend { padding: 0 5px; color: var(--muted); font-size: var(--fs-100); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .phase-row .phase-remove { display: grid; align-self: end; width: 30px; height: 36px; place-items: center; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; }
 .phase-row .phase-remove:hover { color: var(--red); background: var(--red-soft); border-color: #e9c4c4; }
@@ -1006,7 +1006,16 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .detail-phase-card .card-link { margin-top: auto; }
 .detail-phase-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); }
 .detail-phase-empty p { margin: 0; color: var(--ink-soft); font-size: var(--fs-300); }
+.phase-row legend { grid-column: 1 / -1; }
+.phase-row .phase-name-field { grid-column: 1; }
+.phase-row .phase-start-field { grid-column: 2; }
+.phase-row .phase-end-field { grid-column: 3; }
+.phase-row .phase-status-field { grid-column: 4; }
+.phase-row .phase-progress-field { grid-column: 5; }
+.phase-row .phase-remove { grid-column: 6; }
 .phase-row .phase-objective-field { grid-column: 1 / -1; }
+.phase-row .phase-progress-field input { text-align: right; }
+.phase-row .phase-field-focused { padding: 4px 5px; margin: -4px -5px; background: var(--green-soft); border-radius: var(--radius-xs); }
 .detail-phase-card .detail-phase-progress { display: flex; align-items: center; gap: 8px; }
 .detail-phase-card .detail-phase-progress .progress-track { height: 7px; flex: 1; }
 .detail-phase-card .detail-phase-progress strong { font-family: "Manrope", sans-serif; font-size: var(--fs-200); font-weight: 800; }
