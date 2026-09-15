@@ -708,6 +708,68 @@ const PRIVACY_PORTAL_PROJECT = {
   ]
 };
 
+// The five records under Unified Messaging Service - Discovery, Alpha, Build
+// and Configure, Implementation and Testing, Launch - are the stages of one
+// project, the way Privacy Portal's phases are. They collapse into a single
+// project holding them as phases.
+//
+// Nothing here is typed in: every value is read off the five records being
+// replaced. The dates are their earliest start and latest end, the phases keep
+// each record's own name, dates and status, a phase keeps its own description
+// where it differs from the project's, and the two figures that cannot be read
+// directly are derived and said so below. Idempotent, and it only matches
+// records sitting in that unit.
+const LEGACY_UMS = ["Discovery", "Alpha", "Build and Configure", "Implementation and Testing", "Launch"];
+const UMS_UNIT = "Unified Identity and Access Management";
+const UMS_SUB_UNIT = "Unified Messaging Service";
+
+function isLegacyUmsStage(project) {
+  return LEGACY_UMS.includes(project.name) && project.unit === UMS_UNIT && project.subUnit === UMS_SUB_UNIT;
+}
+
+function consolidateUnifiedMessaging(list) {
+  const stages = list.filter(isLegacyUmsStage);
+  if (!stages.length) return list;
+  const kept = list.filter(project => !isLegacyUmsStage(project));
+  if (kept.some(project => project.name === UMS_SUB_UNIT && project.subUnit === UMS_SUB_UNIT)) return kept;
+  const ordered = [...stages].sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  const first = ordered[0];
+  const last = ordered[ordered.length - 1];
+  // The objective the stages agree on is the project's; a stage that carries a
+  // different one keeps it as its own description rather than losing it.
+  const shared = ordered.map(stage => stage.objective).sort((a, b) =>
+    ordered.filter(s => s.objective === b).length - ordered.filter(s => s.objective === a).length)[0] || "";
+  // Derived, because no record states them for the project as a whole: the
+  // status is the one a stage is actually in, and the progress is the mean of
+  // what the stages record.
+  const status = ordered.some(stage => stage.status === "In-flight") ? "In-flight"
+    : ordered.every(stage => stage.status === "Completed") ? "Completed"
+    : first.status;
+  const progress = Math.round(ordered.reduce((sum, stage) => sum + (Number(stage.progress) || 0), 0) / ordered.length);
+  const project = {
+    ...first,
+    name: UMS_SUB_UNIT,
+    objective: shared,
+    status,
+    progress,
+    start: ordered.reduce((earliest, stage) => stage.start && stage.start < earliest ? stage.start : earliest, first.start),
+    end: ordered.reduce((latest, stage) => stage.end && stage.end > latest ? stage.end : latest, first.end),
+    milestoneDate: last.end || first.milestoneDate,
+    approxCost: ordered.reduce((sum, stage) => sum + (Number(stage.approxCost) || 0), 0),
+    phases: ordered.map(stage => ({
+      name: stage.name,
+      start: stage.start || "",
+      end: stage.end || "",
+      status: stage.status,
+      objective: stage.objective === shared ? "" : stage.objective || ""
+    }))
+  };
+  const at = list.findIndex(isLegacyUmsStage);
+  const index = kept.length && at >= 0 ? Math.min(at, kept.length) : kept.length;
+  kept.splice(index, 0, project);
+  return kept;
+}
+
 let teamDirectory = loadTeams();
 let projects = loadProjects();
 let activeView = "projects";
@@ -1020,9 +1082,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return applyUiamDeckStructure(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))).map(normalizeProjectAlignment);
+    return applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)))).map(normalizeProjectAlignment);
   } catch {
-    return applyUiamDeckStructure(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))).map(normalizeProjectAlignment);
+    return applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)))).map(normalizeProjectAlignment);
   }
 }
 
@@ -1042,6 +1104,7 @@ function normalizeProjectUnit(project) {
           name: phase.name.trim(),
           start: phase.start || "",
           end: phase.end || "",
+          objective: typeof phase.objective === "string" ? phase.objective.trim() : "",
           status: projectStatuses.includes(phase.status) ? phase.status : projectStatuses[0]
         }))
     : [];
@@ -1069,6 +1132,7 @@ function phaseRowMarkup(phase = {}) {
     <label>End<input class="phase-end" type="date" value="${phase.end || ""}"></label>
     <label>Status<select class="phase-status">${options}</select></label>
     <button class="phase-remove" data-remove-phase type="button" aria-label="Remove this phase" title="Remove this phase">${iconMarkup("trash-2")}</button>
+    <label class="phase-objective-field">Description <small>optional</small><input class="phase-objective" maxlength="400" value="${(phase.objective || "").replace(/"/g, "&quot;")}" placeholder="What this phase covers"></label>
   </fieldset>`;
 }
 
@@ -1089,6 +1153,7 @@ function readPhaseRows() {
       name: row.querySelector(".phase-name").value.trim(),
       start: row.querySelector(".phase-start").value,
       end: row.querySelector(".phase-end").value,
+      objective: row.querySelector(".phase-objective").value.trim(),
       status: row.querySelector(".phase-status").value
     }))
     .filter(phase => phase.name)
@@ -1915,7 +1980,8 @@ function phaseChipMarkup(project, phase, index) {
   const dates = phase.start && phase.end
     ? `${formatDate(phase.start, { month: "short", day: "numeric", year: "numeric" })} - ${formatDate(phase.end, { month: "short", day: "numeric", year: "numeric" })}`
     : "No dates set";
-  return `<button class="phase-chip phase-chip-${slug(phase.status)}" data-phase-jump="${project.id}" data-phase-index="${index}" type="button" aria-label="Open ${phase.name} on ${project.name}">
+  const note = (phase.objective || "").replace(/"/g, "&quot;");
+  return `<button class="phase-chip phase-chip-${slug(phase.status)}" data-phase-jump="${project.id}" data-phase-index="${index}" type="button"${note ? ` title="${note}"` : ""} aria-label="Open ${phase.name} on ${project.name}">
     <span class="phase-chip-index">${index + 1}</span>
     <span class="phase-chip-text"><strong>${phase.name}</strong><small>${dates}</small></span>
     <span class="status-pill status-${slug(phase.status)}">${phase.status}</span>
@@ -3131,7 +3197,7 @@ function toggleAlertPanel(force) {
 //   says who changed it.
 // ===========================================================================
 const WORKSPACE_KINDS = {
-  projects: { label: "the portfolio", apply: data => { projects = consolidatePrivacyPortal(data.map(normalizeProjectUnit)).map(normalizeProjectAlignment); } },
+  projects: { label: "the portfolio", apply: data => { projects = consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))).map(normalizeProjectAlignment); } },
   teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
   strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
   ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
@@ -3661,7 +3727,7 @@ function renderProjectPage(projectId) {
         <section class="project-page-section">
           <div class="section-heading-row"><div><span class="section-kicker">Execution</span><h2>Project Phases</h2></div><span class="detail-count">${project.phases.length} ${project.phases.length === 1 ? "phase" : "phases"}</span></div>
           ${project.phases.length
-            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p><span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
+            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p>${phase.objective ? `<p class="detail-phase-note">${phase.objective}</p>` : ""}<span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
             : `<div class="detail-phase-empty"><p>No phases recorded for this project yet.</p><button class="secondary-button" data-edit-phase="new" data-project-id="${project.id}" type="button">${iconMarkup("plus")}Add a phase</button></div>`}
         </section>
         ${projectAlignmentSection(project)}

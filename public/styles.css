@@ -1006,6 +1006,9 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .detail-phase-card .card-link { margin-top: auto; }
 .detail-phase-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); }
 .detail-phase-empty p { margin: 0; color: var(--ink-soft); font-size: var(--fs-300); }
+.phase-row .phase-objective-field { grid-column: 1 / -1; }
+.phase-row .phase-objective-field small { margin-left: 5px; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
+.detail-phase-card .detail-phase-note { color: var(--ink-soft); font-size: var(--fs-200); line-height: 1.5; }
 .phase-row.phase-row-focused { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
 .detail-phase-card-focused { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
 
