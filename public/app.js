@@ -1191,19 +1191,21 @@ function updateProgressRollupNote() {
     note.textContent = "";
     return;
   }
-  // With phases present this figure is theirs, so it is never typed here: that
-  // is how a percentage meant for one phase used to end up on the whole
-  // project, above all of them.
-  field.readOnly = true;
   note.hidden = false;
   if (rolled === null) {
+    // No phase has a figure, so there is nothing to average and this stays the
+    // project's own number, typed here as it always was.
+    field.readOnly = false;
     note.className = "phase-rollup-note phase-rollup-hint";
-    note.textContent = `No phase figures entered yet, so this is still the ${field.value}% recorded against the project. Put each phase's own figure in its "This phase's progress" box below and this becomes their combined average.`;
+    note.textContent = `This is the whole project. Enter a figure in a phase's own "This phase's progress" box below and this becomes their combined average instead.`;
     return;
   }
+  // Once the phases carry figures they own this number, so it is read from them
+  // rather than typed - that is what "the combined average of all phases" means.
   field.value = rolled;
+  field.readOnly = true;
   note.className = "phase-rollup-note";
-  note.textContent = `Combined average of the ${phases.length} phases below: ${rolled}%`;
+  note.textContent = `Combined average of the ${phases.length} phases below: ${rolled}%. Clear the phase figures to set this by hand again.`;
 }
 
 function updatePhaseEmptyState() {
