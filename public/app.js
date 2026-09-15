@@ -4088,9 +4088,74 @@ function timelineResizerMarkup(label) {
   return `<button class="timeline-resizer" data-timeline-resizer data-resize-label="${label}" type="button" role="separator" aria-orientation="vertical" aria-label="Resize the ${label} column" aria-valuemin="${TIMELINE_LABEL.min}" aria-valuemax="${TIMELINE_LABEL.max}" aria-valuenow="${width}" title="Drag to resize the ${label} column (${width}px). Double-click to reset."></button>`;
 }
 
+// One collapse control, used at all three levels of the overview. The key a
+// branch unit collapses under is its own name; a unit and a category are
+// prefixed the way the unit filter names them, so a single stored set holds
+// every level without the three ever colliding.
+function groupToggleMarkup(key, label) {
+  const collapsed = collapsedUnits.has(key);
+  const action = collapsed ? "Expand" : "Collapse";
+  return `<button class="section-collapse" data-toggle-unit="${key.replace(/"/g, "&quot;")}" type="button" aria-expanded="${!collapsed}" title="${action} ${label}" aria-label="${action} ${label}">${collapsed ? "+" : "\u2212"}</button>`;
+}
+
 function unitToggleMarkup(unit) {
-  const collapsed = collapsedUnits.has(unit);
-  return `<button class="section-collapse" data-toggle-unit="${unit}" type="button" aria-expanded="${!collapsed}" title="${collapsed ? "Expand" : "Collapse"} ${unit}" aria-label="${collapsed ? "Expand" : "Collapse"} ${unit}">${collapsed ? "+" : "\u2212"}</button>`;
+  return groupToggleMarkup(unit, unit);
+}
+
+function unitGroupKey(unit, subUnit) {
+  return `sub:${unit}::${subUnit}`;
+}
+
+function categoryGroupKey(unit, subUnit, subCategory) {
+  return `sub2:${unit}::${subUnit}::${subCategory}`;
+}
+
+function projectCountLabel(count) {
+  return `${count} ${count === 1 ? "project" : "projects"}`;
+}
+
+// The unit and category bands of the table, each able to roll its projects up.
+// A collapsed band keeps its own heading and count, so what is hidden is still
+// named and the control stays where it was.
+function projectTableGroupsMarkup(unit, unitProjects) {
+  return subGroupsFor(unit, unitProjects).map(group => {
+    const unitKey = group.sub ? unitGroupKey(unit, group.sub) : "";
+    const unitCollapsed = Boolean(unitKey) && collapsedUnits.has(unitKey);
+    const unitHeading = group.sub
+      ? `<tr class="project-subunit-table-heading${unitCollapsed ? " collapsed" : ""}"><td colspan="8"><div>${groupToggleMarkup(unitKey, group.sub)}<span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${projectCountLabel(group.items.length)}</small></div></td></tr>`
+      : "";
+    if (unitCollapsed) return unitHeading;
+    return unitHeading + nestedGroupsFor(unit, group.sub, group.items).map(nested => {
+      const catKey = nested.subCategory ? categoryGroupKey(unit, group.sub, nested.subCategory) : "";
+      const catCollapsed = Boolean(catKey) && collapsedUnits.has(catKey);
+      const catHeading = nested.subCategory
+        ? `<tr class="project-subcategory-table-heading${catCollapsed ? " collapsed" : ""}"><td colspan="8"><div>${groupToggleMarkup(catKey, nested.subCategory)}<span>${iconMarkup("corner-down-right")}</span><strong>${nested.subCategory}</strong><small>${projectCountLabel(nested.items.length)}</small></div></td></tr>`
+        : "";
+      if (catCollapsed) return catHeading;
+      return catHeading + nested.items.map(project => `${projectRow(project, projects.indexOf(project))}${projectPhaseRow(project)}`).join("");
+    }).join("");
+  }).join("");
+}
+
+// The same three levels in the card layout.
+function projectCardGroupsMarkup(unit, unitProjects) {
+  return subGroupsFor(unit, unitProjects).map(group => {
+    const unitKey = group.sub ? unitGroupKey(unit, group.sub) : "";
+    const unitCollapsed = Boolean(unitKey) && collapsedUnits.has(unitKey);
+    const unitHeading = group.sub
+      ? `<div class="project-subunit-heading${unitCollapsed ? " collapsed" : ""}">${groupToggleMarkup(unitKey, group.sub)}${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${projectCountLabel(group.items.length)}</small></div>`
+      : "";
+    if (unitCollapsed) return unitHeading;
+    return unitHeading + nestedGroupsFor(unit, group.sub, group.items).map(nested => {
+      const catKey = nested.subCategory ? categoryGroupKey(unit, group.sub, nested.subCategory) : "";
+      const catCollapsed = Boolean(catKey) && collapsedUnits.has(catKey);
+      const catHeading = nested.subCategory
+        ? `<div class="project-subcategory-heading${catCollapsed ? " collapsed" : ""}">${groupToggleMarkup(catKey, nested.subCategory)}${iconMarkup("corner-down-right")}<strong>${nested.subCategory}</strong><small>${projectCountLabel(nested.items.length)}</small></div>`
+        : "";
+      if (catCollapsed) return catHeading;
+      return catHeading + `<div class="project-unit-card-grid">${nested.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`;
+    }).join("");
+  }).join("");
 }
 
 function subGroupsFor(unit, unitProjects) {
@@ -4135,8 +4200,8 @@ function renderProjects() {
   const ordered = [...projectUnits, ...[...byUnit.keys()].filter(unit => !projectUnits.includes(unit))];
   const grouped = ordered.filter(unit => byUnit.has(unit)).map(unit => [unit, byUnit.get(unit)]);
   elements.projectCount.textContent = `(${filtered.length})`;
-  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="8"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<tr class="project-subunit-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<tr class="project-subcategory-table-heading"><td colspan="8"><div><span>${iconMarkup("corner-down-right")}</span><strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div></td></tr>` : ""}${nested.items.map(project => `${projectRow(project, projects.indexOf(project))}${projectPhaseRow(project)}`).join("")}`).join("")}`).join("")}`).join("");
-  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Branch Unit</span><h3>${unit}</h3></div><strong>${unitProjects.length} ${unitProjects.length === 1 ? "project" : "projects"}</strong></div>${collapsedUnits.has(unit) ? "" : subGroupsFor(unit, unitProjects).map(group => `${group.sub ? `<div class="project-subunit-heading">${iconMarkup("corner-down-right")}<strong>${group.sub}</strong><small>${group.items.length} ${group.items.length === 1 ? "project" : "projects"}</small></div>` : ""}${nestedGroupsFor(unit, group.sub, group.items).map(nested => `${nested.subCategory ? `<div class="project-subcategory-heading">${iconMarkup("corner-down-right")}<strong>${nested.subCategory}</strong><small>${nested.items.length} ${nested.items.length === 1 ? "project" : "projects"}</small></div>` : ""}<div class="project-unit-card-grid">${nested.items.map(project => projectCard(project, projects.indexOf(project))).join("")}</div>`).join("")}`).join("")}</section>`).join("");
+  elements.tableBody.innerHTML = grouped.map(([unit, unitProjects]) => `<tr class="project-unit-table-heading${collapsedUnits.has(unit) ? " collapsed" : ""}"><td colspan="8"><div>${unitToggleMarkup(unit)}<span>${iconMarkup("building-2")}</span><strong>${unit}</strong><small>${projectCountLabel(unitProjects.length)}</small></div></td></tr>${collapsedUnits.has(unit) ? "" : projectTableGroupsMarkup(unit, unitProjects)}`).join("");
+  elements.cardLayout.innerHTML = grouped.map(([unit, unitProjects]) => `<section class="project-unit-group"><div class="project-unit-heading">${unitToggleMarkup(unit)}<span class="project-unit-heading-icon">${iconMarkup("building-2")}</span><div><span>Branch Unit</span><h3>${unit}</h3></div><strong>${projectCountLabel(unitProjects.length)}</strong></div>${collapsedUnits.has(unit) ? "" : projectCardGroupsMarkup(unit, unitProjects)}</section>`).join("");
   const empty = filtered.length === 0;
   elements.emptyState.classList.toggle("hidden", !empty);
   elements.tableLayout.classList.toggle("hidden", empty || activeLayout !== "table");

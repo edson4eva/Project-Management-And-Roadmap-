@@ -923,6 +923,13 @@ select { height: 36px; padding: 0 31px 0 10px; color: var(--ink-soft); backgroun
 .section-collapse:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
 .project-unit-table-heading.collapsed td { border-bottom: 1px solid var(--line); }
 .project-unit-heading .section-collapse { margin-right: 2px; }
+.project-subunit-table-heading .section-collapse,
+.project-subcategory-table-heading .section-collapse { width: 16px; height: 16px; font-size: 12px; }
+.project-subcategory-table-heading .section-collapse { width: 15px; height: 15px; font-size: 11px; }
+.project-subunit-heading .section-collapse,
+.project-subcategory-heading .section-collapse { width: 16px; height: 16px; font-size: 12px; }
+.project-subunit-table-heading.collapsed td,
+.project-subcategory-table-heading.collapsed td { border-bottom: 1px solid var(--line); }
 .timeline-lane-heading .section-collapse { width: 16px; height: 16px; font-size: var(--fs-300); }
 .timeline-lane-heading { gap: 7px; justify-content: flex-start; }
 .timeline-lane-heading small { margin-left: auto; }
