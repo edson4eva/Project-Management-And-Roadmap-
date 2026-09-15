@@ -188,6 +188,7 @@ const projectUnits = ["Unified Identity and Access Management", "Alberta Wallet 
 // calls it Category.
 const unitSubCategories = {
   "Unified Identity and Access Management": ["UIAM - Verification", "Strategy and Operations", "Alberta.ca Account Features", "Unified Messaging Service"],
+  "Alberta Wallet and Credentials": ["Alberta Wallet"],
   "Alberta Payments": ["eServices"],
   "Web Services": ["Learning Management System"],
   "Platforms Operations": ["Privacy Portal"]
@@ -326,6 +327,12 @@ const categorySubCategories = {
     "Design Improvements",
     "Alberta.ca Account Branding",
     "Service Integration"
+  ],
+  // The three labelled rows of the deck's Alberta Wallet timeline, slide 20.
+  "Alberta Wallet and Credentials::Alberta Wallet": [
+    "Wallet",
+    "Wallet & Credentials",
+    "Account App"
   ]
 };
 
@@ -697,6 +704,68 @@ function phaseProgressRollup(phases) {
   if (!list.length || !list.some(hasPhaseProgress)) return null;
   const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
   return Math.round(total / list.length);
+}
+
+// ---------------------------------------------------------------------------
+// Alberta Wallet structure taken from the same September 2025 Platforms
+// Roadmap deck, slides 19 to 21. Slide 19 names the section, slide 20 carries
+// the timeline with three labelled rows, and slide 21 gives the initiative and
+// the per-deliverable descriptions.
+//
+// As with UIAM, a project appears here only because the deck puts a bar on that
+// row, and a description is set only where the deck writes one for that
+// deliverable. The rest keep the objective they already carry.
+//
+// Two things the deck does that are worth recording rather than guessing at:
+// the "Wallet" row carries no bars at all, and the row shows a Go-live marker
+// in Aug-Sep 2025 whose label sits outside its bar and which slide 21 lists no
+// deliverable for, so it is not turned into a project here.
+// ---------------------------------------------------------------------------
+const WALLET_DECK_PAGES = {
+  "Alberta Wallet": {
+    slides: [19, 20, 21],
+    initiative: "Mobile Wallet",
+    description: "The Moblie Wallet will allow users to store digital credentials in a cloud wallet and access from a mobile application or on their Alberta.ca Account.",
+    rowDescriptions: {
+      "Account App": "Expansion of account features: Creation of new features such as notifications, and simple services"
+    }
+  }
+};
+
+const WALLET_DECK_PROJECTS = [
+  // Slide 20, row "Wallet & Credentials"
+  { name: "Release Candidate 1", category: "Alberta Wallet", subCategory: "Wallet & Credentials",
+    objective: "Release Candidate 1: Release of functioning mobile application integrated with MyHealth Records to issue the mobile health card." },
+  { name: "Mobile Health Card", category: "Alberta Wallet", subCategory: "Wallet & Credentials" },
+  { name: "Target Launch August 7", category: "Alberta Wallet", subCategory: "Wallet & Credentials" },
+  { name: "RC 2", category: "Alberta Wallet", subCategory: "Wallet & Credentials",
+    objective: "Release Candidate 2: Second release to update design, and add support for Apple and Google Wallet, and enhanced login support." },
+  { name: "mDL Planning and Governance", category: "Alberta Wallet", subCategory: "Wallet & Credentials",
+    objective: "mDL Planning and Governance: Establishment of new project for mDL implementation with SARTR, TI, and Health." },
+  { name: "mDL Implementation", category: "Alberta Wallet", subCategory: "Wallet & Credentials",
+    objective: "mDL Implementation: Implementation of mDL into Mobile Wallet." },
+  { name: "Credential Intake & Expansion", category: "Alberta Wallet", subCategory: "Wallet & Credentials",
+    objective: "Credential Expansion: Implementation of other credentials into the Mobile Wallet with ministry partners - potentially divers registration, teaching certificates." },
+
+  // Slide 20, row "Account App"
+  { name: "Application Discovery", category: "Alberta Wallet", subCategory: "Account App" },
+  { name: "Application Features expansion", category: "Alberta Wallet", subCategory: "Account App",
+    objective: "Expansion of account features: Creation of new features such as notifications, and simple services." }
+];
+
+// Same contract as the UIAM importer: matches on the project name inside its
+// own branch unit, only ever fills the unit, category and description, and
+// never touches dates, status, progress or anything else already recorded.
+function applyWalletDeckStructure(list) {
+  const byName = new Map(WALLET_DECK_PROJECTS.map(entry => [entry.name, entry]));
+  list.forEach(project => {
+    const entry = byName.get(project.name);
+    if (!entry || project.unit !== "Alberta Wallet and Credentials") return;
+    project.subUnit = entry.category;
+    project.subCategory = entry.subCategory;
+    if (entry.objective) project.objective = entry.objective;
+  });
+  return list;
 }
 
 const LEGACY_PRIVACY_PORTAL = [
@@ -1112,9 +1181,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)))).map(normalizeProjectAlignment);
+    return applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))))).map(normalizeProjectAlignment);
   } catch {
-    return applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)))).map(normalizeProjectAlignment);
+    return applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))))).map(normalizeProjectAlignment);
   }
 }
 
@@ -3266,7 +3335,7 @@ function toggleAlertPanel(force) {
 //   says who changed it.
 // ===========================================================================
 const WORKSPACE_KINDS = {
-  projects: { label: "the portfolio", apply: data => { projects = consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))).map(normalizeProjectAlignment); } },
+  projects: { label: "the portfolio", apply: data => { projects = applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))))).map(normalizeProjectAlignment); } },
   teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
   strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
   ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
