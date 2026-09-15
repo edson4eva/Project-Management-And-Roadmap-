@@ -687,34 +687,16 @@ function hasPhaseProgress(phase) {
     && phase.progress !== undefined && Number.isFinite(Number(phase.progress));
 }
 
-// A phase's span in days, inclusive of both ends. Null when it has no dates.
-function phaseDurationDays(phase) {
-  if (!phase || !phase.start || !phase.end) return null;
-  const start = new Date(phase.start).getTime();
-  const end = new Date(phase.end).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  return Math.max(1, Math.round((end - start) / 86400000) + 1);
-}
-
-// The project's progress is the total of its phases, each weighted by how long
-// it runs: a phase that takes three months moves the project more than one
-// that takes three weeks. A phase with no dates has no span, so it is weighted
-// at the average of the dated phases rather than being left out of the total;
-// with no dated phases at all every phase counts equally.
+// The project's progress is the combined average of all its phases: every
+// phase counts once, and a phase with no figure counts as none of its share.
 //
-// Returns null when no phase records progress, in which case the project keeps
-// the progress recorded against it and nothing is overwritten.
+// Returns null only when no phase records progress at all, in which case the
+// project keeps the progress recorded against it rather than dropping to zero.
 function phaseProgressRollup(phases) {
   const list = Array.isArray(phases) ? phases : [];
   if (!list.length || !list.some(hasPhaseProgress)) return null;
-  const spans = list.map(phaseDurationDays);
-  const dated = spans.filter(span => span !== null);
-  const fallback = dated.length ? dated.reduce((sum, span) => sum + span, 0) / dated.length : 1;
-  const weights = spans.map(span => span === null ? fallback : span);
-  const span = weights.reduce((sum, weight) => sum + weight, 0);
-  const weighted = list.reduce((sum, phase, index) =>
-    sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0) * weights[index], 0);
-  return Math.round(weighted / span);
+  const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
+  return Math.round(total / list.length);
 }
 
 const LEGACY_PRIVACY_PORTAL = [
@@ -798,8 +780,7 @@ function consolidateUnifiedMessaging(list) {
     progress: phaseProgressValue(stage.progress),
     objective: stage.objective === shared ? "" : stage.objective || ""
   }));
-  // The phases carry their own progress, so the project's is their total,
-  // weighted by how long each phase runs.
+  // The phases carry their own progress, so the project's is their average.
   const progress = phaseProgressRollup(phases);
   const project = {
     ...first,
@@ -1195,22 +1176,29 @@ function renderPhaseRows(phases) {
   refreshIcons();
 }
 
-// When the phases record progress, the project's own progress is their total,
-// so the field states the total and stops taking a value that would be
-// ignored. Clearing the phase figures hands the field back.
+// This field is the project's overall progress, never a phase's, and a project
+// with phases now says so: once the phases record progress it states their
+// combined average and stops taking a typed value, and before that it says
+// where a phase's own figure belongs. A project without phases is unchanged.
 function updateProgressRollupNote() {
   const note = document.querySelector("#progressRollupNote");
   const field = elements.form.elements.progress;
-  const rolled = phaseProgressRollup(readPhaseRows());
-  if (rolled === null) {
-    note.hidden = true;
-    field.readOnly = false;
+  const phases = readPhaseRows();
+  const rolled = phaseProgressRollup(phases);
+  if (rolled !== null) {
+    field.value = rolled;
+    field.readOnly = true;
+    note.hidden = false;
+    note.className = "phase-rollup-note";
+    note.textContent = `Combined average of the ${phases.length} phases below: ${rolled}%`;
     return;
   }
-  field.value = rolled;
-  field.readOnly = true;
-  note.hidden = false;
-  note.textContent = `Totalled from the phases below, weighted by how long each runs: ${rolled}%`;
+  field.readOnly = false;
+  note.hidden = phases.length === 0;
+  note.className = "phase-rollup-note phase-rollup-hint";
+  note.textContent = phases.length
+    ? "This is the whole project, not a phase. Put each phase's own figure in its Progress box below and this becomes their combined average."
+    : "";
 }
 
 function updatePhaseEmptyState() {
@@ -3801,7 +3789,7 @@ function renderProjectPage(projectId) {
         <section class="project-page-section">
           <div class="section-heading-row"><div><span class="section-kicker">Execution</span><h2>Project Phases</h2></div><span class="detail-count">${project.phases.length} ${project.phases.length === 1 ? "phase" : "phases"}</span></div>
           ${project.phases.length
-            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p>${phase.objective ? `<p class="detail-phase-note">${phase.objective}</p>` : ""}${!hasPhaseProgress(phase) ? `<p class="detail-phase-note detail-phase-unset">No progress recorded</p>` : `<div class="detail-phase-progress"><div class="progress-track"><span style="width:${phase.progress}%"></span></div><strong>${phase.progress}%</strong></div>`}<span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
+            ? `<div class="detail-phase-grid">${project.phases.map((phase, index) => `<button class="detail-phase-card" data-edit-phase="${index}" data-project-id="${project.id}" type="button" aria-label="Edit ${phase.name}"><div class="detail-phase-top"><span class="phase-index">${index + 1}</span><span class="status-pill status-${slug(phase.status)}">${phase.status}</span></div><h3>${phase.name}</h3><p>${phase.start && phase.end ? `${formatDate(phase.start)} - ${formatDate(phase.end)}` : "No dates set"}</p>${phase.objective ? `<p class="detail-phase-note">${phase.objective}</p>` : ""}${!hasPhaseProgress(phase) ? `<p class="detail-phase-note detail-phase-unset" data-phase-field="progress">No progress recorded - set it for this phase</p>` : `<div class="detail-phase-progress" data-phase-field="progress" title="Set this phase's own progress"><div class="progress-track"><span style="width:${phase.progress}%"></span></div><strong>${phase.progress}%</strong></div>`}<span class="card-link">Edit phase ${iconMarkup("pencil-line")}</span></button>`).join("")}</div>`
             : `<div class="detail-phase-empty"><p>No phases recorded for this project yet.</p><button class="secondary-button" data-edit-phase="new" data-project-id="${project.id}" type="button">${iconMarkup("plus")}Add a phase</button></div>`}
         </section>
         ${projectAlignmentSection(project)}
@@ -6668,7 +6656,12 @@ document.addEventListener("click", event => {
   if (!row) return;
   row.classList.add("phase-row-focused");
   row.scrollIntoView({ behavior: "smooth", block: "center" });
-  row.querySelector(".phase-name")?.focus();
+  // Arriving from the card's progress lands on that phase's own figure.
+  const field = event.target.closest("[data-phase-field]")?.dataset.phaseField === "progress"
+    ? row.querySelector(".phase-progress")
+    : row.querySelector(".phase-name");
+  field?.focus();
+  field?.select?.();
 });
 
 document.querySelector("#addPhaseButton").addEventListener("click", () => {

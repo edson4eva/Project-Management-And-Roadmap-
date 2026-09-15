@@ -1012,6 +1012,9 @@ body.timeline-resizing { cursor: col-resize; user-select: none; }
 .detail-phase-card .detail-phase-progress strong { font-family: "Manrope", sans-serif; font-size: var(--fs-200); font-weight: 800; }
 .detail-phase-card .detail-phase-unset { color: var(--muted); font-size: var(--fs-100); font-weight: 600; }
 .phase-rollup-note { display: block; margin-top: 4px; color: var(--green); font-size: var(--fs-100); font-weight: 700; }
+.phase-rollup-note.phase-rollup-hint { color: var(--muted); font-weight: 600; line-height: 1.45; }
+.detail-phase-card .detail-phase-progress { cursor: pointer; }
+.detail-phase-card .detail-phase-unset { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 .phase-row .phase-objective-field small { margin-left: 5px; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
 .detail-phase-card .detail-phase-note { color: var(--ink-soft); font-size: var(--fs-200); line-height: 1.5; }
 .phase-row.phase-row-focused { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
