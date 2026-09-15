@@ -739,13 +739,19 @@ function consolidateUnifiedMessaging(list) {
   // different one keeps it as its own description rather than losing it.
   const shared = ordered.map(stage => stage.objective).sort((a, b) =>
     ordered.filter(s => s.objective === b).length - ordered.filter(s => s.objective === a).length)[0] || "";
-  // Derived, because no record states them for the project as a whole: the
-  // status is the one a stage is actually in, and the progress is the mean of
-  // what the stages record.
-  const status = ordered.some(stage => stage.status === "In-flight") ? "In-flight"
+  // Derived, because no record states them for the project as a whole. Both
+  // follow the live phase: the project is in the state the stage under way is
+  // in, and it is as far along as that stage records. An average across the
+  // stages would read the project as barely started while its live phase is
+  // most of the way through, so the live phase governs.
+  const live = ordered.filter(stage => stage.status === "In-flight");
+  const status = live.length ? "In-flight"
     : ordered.every(stage => stage.status === "Completed") ? "Completed"
     : first.status;
-  const progress = Math.round(ordered.reduce((sum, stage) => sum + (Number(stage.progress) || 0), 0) / ordered.length);
+  const progress = live.length
+    ? Math.max(...live.map(stage => Number(stage.progress) || 0))
+    : ordered.every(stage => stage.status === "Completed") ? 100
+    : Number(first.progress) || 0;
   const project = {
     ...first,
     name: UMS_SUB_UNIT,
