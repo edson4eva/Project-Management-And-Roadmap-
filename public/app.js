@@ -328,6 +328,14 @@ const categorySubCategories = {
     "Alberta.ca Account Branding",
     "Service Integration"
   ],
+  // The five labelled rows of the deck's eServices timelines, slides 23 and 25.
+  "Alberta Payments::eServices": [
+    "Service Enhancements",
+    "Payment Enhancements",
+    "Integrations",
+    "Security Improvements",
+    "Administration and Reporting"
+  ],
   // The three labelled rows of the deck's Alberta Wallet timeline, slide 20.
   "Alberta Wallet and Credentials::Alberta Wallet": [
     "Wallet",
@@ -704,6 +712,99 @@ function phaseProgressRollup(phases) {
   if (!list.length || !list.some(hasPhaseProgress)) return null;
   const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
   return Math.round(total / list.length);
+}
+
+// ---------------------------------------------------------------------------
+// eServices structure taken from the same deck, slides 22 to 26. Slide 22
+// names the section; slides 23 and 25 carry two timeline pages with five
+// labelled rows between them; slides 24 and 26 give the initiative and the
+// per-deliverable descriptions.
+//
+// A project appears here only because the deck draws a bar for it on one of
+// those rows, and a description is set only where the deck writes one. Two
+// details of the deck are worth recording rather than smoothing over: it names
+// two deliverables differently in the description tables than on the timeline
+// (Apple Pay / "Apply Pay Integration", Direct to Checkout / "Straight to
+// Checkout", Save and Reuse Payment Card / "Save and Reuse Credit Card"), and
+// it writes the Court of Appeal description under Service Enhancements while
+// drawing its bar on the Integrations row - the bar's row wins here, because
+// that is where the deck places the work.
+// ---------------------------------------------------------------------------
+const ESERVICES_DECK_PAGES = {
+  eServices: {
+    slides: [22, 23, 24, 25, 26],
+    initiative: "eServices",
+    description: "eServices is a digital platform that enables Albertans to pay for government services and products including motor vehicle services, fine payments, and court-related searches. The platform processes hundreds of thousands of transactions and generates hundreds of millions in revenue for the government, annually.",
+    rows: {
+      "Service Enhancements": 23,
+      "Payment Enhancements": 23,
+      "Integrations": 23,
+      "Security Improvements": 25,
+      "Administration and Reporting": 25
+    }
+  }
+};
+
+const ESERVICES_DECK_PROJECTS = [
+  // Slide 23, row "Service Enhancements"
+  { name: "Electric Vehicle Tax", category: "eServices", subCategory: "Service Enhancements",
+    objective: "Motor Vehicles Electric Vehicle Tax: This project entails the implementation of the Electric Vehicle Tax for specific vehicle registration renewals. The official rollout is scheduled for January 1, 2025." },
+  { name: "Learning Management System Integration", category: "eServices", subCategory: "Service Enhancements",
+    objective: "Learning Management System Integration: The business area managing the learning management system would like to integrate with eServices to collect fees related to their program." },
+  { name: "Automated Refunds", category: "eServices", subCategory: "Service Enhancements" },
+  { name: "Health Card Modernization: DL/ID", category: "eServices", subCategory: "Service Enhancements" },
+  { name: "Automatic Vehicle Registration Renewals", category: "eServices", subCategory: "Service Enhancements",
+    objective: "Automatic Vehicle Registration Renewals: This project would allow customers to opt-in (and opt-out) of automatic vehicle registration renewals." },
+
+  // Slide 23, row "Payment Enhancements"
+  { name: "Apply Pay Integration", category: "eServices", subCategory: "Payment Enhancements",
+    objective: "Apple Pay Integration: Facilitates fast and secure payments via Apple Pay, enhancing checkout, while ensuring transaction security through tokenization and biometric authentication for mobile wallet users." },
+  { name: "Save and Reuse Credit Card", category: "eServices", subCategory: "Payment Enhancements",
+    objective: "Save and Reuse Payment Card: Enables users to securely save their payment card details for future transactions, streamlining the checkout process." },
+  { name: "1GX API Integration for Journal Posting", category: "eServices", subCategory: "Payment Enhancements" },
+
+  // Slide 23, row "Integrations"
+  { name: "Privacy Portal Integration", category: "eServices", subCategory: "Integrations",
+    objective: "Privacy Portal Integration: This integration provides a convenient way for Albertans to view their eServices transaction history, aligning with the Privacy Portal initiative's goals of enhancing transparency and user access to personal data." },
+  { name: "Straight to Checkout", category: "eServices", subCategory: "Integrations",
+    objective: "Direct to Checkout: Enables integrated applications to bypass the product and cart pages on eServices, streamlining the payment process by going directly to checkout. Improves user experience by providing a quicker and more convenient checkout process." },
+  { name: "Child Care Administrative Penalties Integration", category: "eServices", subCategory: "Integrations" },
+  { name: "Address Validation Service Integration", category: "eServices", subCategory: "Integrations" },
+  { name: "Court of Appeal Management System Integration", category: "eServices", subCategory: "Integrations",
+    objective: "Court of Appeal Management System: The Courts Judicial and Administration area would like to integrate the Court of Appeal of Alberta's Case Management System (CAMS) with eServices for the collection of court filing fees." },
+
+  // Slide 25, row "Security Improvements". The deck writes one F5 Shape
+  // description covering both F5 Shape bars, and one PCI DSS description
+  // covering both compliance bars, so each pair carries the same words.
+  { name: "F5 Shape - Exploration", category: "eServices", subCategory: "Security Improvements",
+    objective: "F5 Shape: Enhance security for eServices and reduce fraudulent payments." },
+  { name: "F5 Shape Implementation", category: "eServices", subCategory: "Security Improvements",
+    objective: "F5 Shape: Enhance security for eServices and reduce fraudulent payments." },
+  { name: "F5 Distributed Cloud Client-Side Defense \u2013 PCI DSS 4.0 Compliance", category: "eServices", subCategory: "Security Improvements",
+    objective: "PCI DCC Compliance 4.0: Update to security standards designed to protect cardholder data and enhance payment security including F5 Distributed Cloud Services." },
+  { name: "Approved Scanning Vendor (ASV) External Passing Scan \u2013 PCI DSS 4.0 Compliance", category: "eServices", subCategory: "Security Improvements",
+    objective: "PCI DCC Compliance 4.0: Update to security standards designed to protect cardholder data and enhance payment security including F5 Distributed Cloud Services." },
+  { name: "Adobe Commerce Upgrade 2.4.6-p11", category: "eServices", subCategory: "Security Improvements" },
+
+  // Slide 25, row "Administration and Reporting"
+  { name: "Product Import/Export Functionality", category: "eServices", subCategory: "Administration and Reporting",
+    objective: "Product Import/Export Functionality: Allows administrators to export products from one environment and import into another environment. Reduces the time required to ensure that all products are configured a similar way across environments." },
+  { name: "Quantum Metric Pilot", category: "eServices", subCategory: "Administration and Reporting" },
+  { name: "Financial Reporting from Data Services", category: "eServices", subCategory: "Administration and Reporting",
+    objective: "Financial Reporting from Data Services: Move eServices financial reporting from Adobe Commerce to the data warehouse / Metabase thereby improving performance of eServices." }
+];
+
+// Same contract as the other two importers.
+function applyEservicesDeckStructure(list) {
+  const byName = new Map(ESERVICES_DECK_PROJECTS.map(entry => [entry.name, entry]));
+  list.forEach(project => {
+    const entry = byName.get(project.name);
+    if (!entry || project.unit !== "Alberta Payments") return;
+    project.subUnit = entry.category;
+    project.subCategory = entry.subCategory;
+    if (entry.objective) project.objective = entry.objective;
+  });
+  return list;
 }
 
 // ---------------------------------------------------------------------------
@@ -1181,9 +1282,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))))).map(normalizeProjectAlignment);
+    return applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)))))).map(normalizeProjectAlignment);
   } catch {
-    return applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))))).map(normalizeProjectAlignment);
+    return applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)))))).map(normalizeProjectAlignment);
   }
 }
 
@@ -3335,7 +3436,7 @@ function toggleAlertPanel(force) {
 //   says who changed it.
 // ===========================================================================
 const WORKSPACE_KINDS = {
-  projects: { label: "the portfolio", apply: data => { projects = applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))))).map(normalizeProjectAlignment); } },
+  projects: { label: "the portfolio", apply: data => { projects = applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit)))))).map(normalizeProjectAlignment); } },
   teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
   strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
   ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
