@@ -189,7 +189,7 @@ const projectUnits = ["Unified Identity and Access Management", "Alberta Wallet 
 const unitSubCategories = {
   "Unified Identity and Access Management": ["UIAM - Verification", "Strategy and Operations", "Alberta.ca Account Features", "Unified Messaging Service"],
   "Alberta Wallet and Credentials": ["Alberta Wallet"],
-  "Alberta Payments": ["eServices"],
+  "Alberta Payments": ["eServices", "Common Payment Platform (CPP) and Common Payment Services (CPS)"],
   "Web Services": ["Learning Management System"],
   "Platforms Operations": ["Privacy Portal"]
 };
@@ -327,6 +327,17 @@ const categorySubCategories = {
     "Design Improvements",
     "Alberta.ca Account Branding",
     "Service Integration"
+  ],
+  // The eight labelled rows of the deck's Common Payments timelines, 28 and 29.
+  "Alberta Payments::Common Payment Platform (CPP) and Common Payment Services (CPS)": [
+    "Evacuation Payment System (EPS) - Transformation",
+    "CPP - Public Portal",
+    "CPP - Internal Portal",
+    "CPP - Admin Portal",
+    "CPS",
+    "CPP and CPS - post MVP",
+    "Emergency Benefit Payment System (EBS) - modernization",
+    "Emergency Registration System (ERS) - modernization"
   ],
   // The five labelled rows of the deck's eServices timelines, slides 23 and 25.
   "Alberta Payments::eServices": [
@@ -712,6 +723,82 @@ function phaseProgressRollup(phases) {
   if (!list.length || !list.some(hasPhaseProgress)) return null;
   const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
   return Math.round(total / list.length);
+}
+
+// ---------------------------------------------------------------------------
+// Common Payment Platform (CPP) and Common Payment Services (CPS), from the
+// same deck, slides 27 to 31. Slide 27 names the section; slides 28 and 29 are
+// two timeline pages sharing one heading, which is the unit here; slides 30 and
+// 31 give the initiative and the descriptions.
+//
+// The row each bar sits on was read off the rendered pages. On these two slides
+// the bars are positioned independently of the table's row heights, so working
+// the row out from the shape geometry puts several bars a band out - the pages
+// themselves are the reliable source and were used instead.
+//
+// The deck writes its descriptions against the rows rather than the individual
+// bars, so every bar on a row carries that row's description, named as the deck
+// names it. The deck also gives each row a Domain and a Release, which the app
+// has no field for; both are recorded below rather than dropped.
+//
+// "EEP readiness for the 2026 emergency season" is one tall bar drawn across
+// the CPP and CPS rows rather than on any one of them, so it carries no
+// category and sits directly under the unit.
+// ---------------------------------------------------------------------------
+const PAYMENTS_DECK_PAGES = {
+  "Common Payment Platform (CPP) and Common Payment Services (CPS)": {
+    slides: [27, 28, 29, 30, 31],
+    initiative: "Common Payments Platform",
+    description: "Evacuation Payment System (EPS) was created in 2018 in response to the challenges faced in distributing evacuation payments during the 2016 Fort McMurray wildfires. The system is used to disburse funds electronically to eligible Albertans in response to evacuation orders. EPS will be replaced by a future common payment services and common payment platform with the goal to deliver emergency payment programs to Albertans better, smarter, and faster.",
+    rows: {
+      "Evacuation Payment System (EPS) - Transformation": { slide: 28, domain: "Existing Service", release: "Q4 24/25" },
+      "CPP - Public Portal": { slide: 28, domain: "New Service", release: "Q3 25/26" },
+      "CPP - Internal Portal": { slide: 28, domain: "New Service", release: "Q3 25/26" },
+      "CPP - Admin Portal": { slide: 28, domain: "New Service", release: "Q3 25/26" },
+      "CPS": { slide: 28, domain: "New Service", release: "Q3 25/26" },
+      "CPP and CPS - post MVP": { slide: 29, domain: "", release: "" },
+      "Emergency Benefit Payment System (EBS) - modernization": { slide: 29, domain: "New Service", release: "Q4 25/26" },
+      "Emergency Registration System (ERS) - modernization": { slide: 29, domain: "New Service", release: "Q4 25/26" }
+    }
+  }
+};
+
+const PAYMENTS_DECK_PROJECTS = [
+  { name: "Tech Upgrades, Security Compliance for the 2025 emergency evacuation season", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "Evacuation Payment System (EPS) - Transformation",
+    objective: "Evacuation Payment System (EPS) - Tech Upgrades and System Enhancements: Tech upgrading and portal enhancing the existing system to be ready for the 2025 wildfire season and to comply with current technologies and cybersecurity standards minimizing vulnerability risks impacting Albertans and SCSS business operations." },
+  { name: "EPS Enhancements for the 2025 emergency evacuation season", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "Evacuation Payment System (EPS) - Transformation",
+    objective: "Evacuation Payment System (EPS) - Tech Upgrades and System Enhancements: Tech upgrading and portal enhancing the existing system to be ready for the 2025 wildfire season and to comply with current technologies and cybersecurity standards minimizing vulnerability risks impacting Albertans and SCSS business operations." },
+  { name: "Emergency Evacuation Payments (EEP) Application Submission Pilot – 2026 Evacuation Season", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPP - Public Portal",
+    objective: "Public Portal: A portal for one-time payment application forms. The initial launch will be piloting with SCSS to support the Emergency Evacuation Payment (EEP) program." },
+  { name: "EEP Application Payment Management Pilot– 2026 Evacuation Season", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPP - Internal Portal",
+    objective: "Payment Services Portal: A common Payments Service Portal that enables workflows for adjudication, proxy, approval, EO audit and financial management journal processes to support business issuing one-time payments based on program eligibility requirements. Enables Ministry business programs with automated end-to-end financial reconciliation, audit, and journal management capabilities which streamline financial process with audit tracking." },
+  { name: "Financial Payment Management – real time GL posting", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPP - Internal Portal",
+    objective: "Payment Services Portal: A common Payments Service Portal that enables workflows for adjudication, proxy, approval, EO audit and financial management journal processes to support business issuing one-time payments based on program eligibility requirements. Enables Ministry business programs with automated end-to-end financial reconciliation, audit, and journal management capabilities which streamline financial process with audit tracking." },
+  { name: "EEP One-time Payment Program Management Pilot– 2026 Evacuation Season", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPP - Admin Portal",
+    objective: "Admin Portal: An Administrative platform that enables Ministry business programs to quickly spin up payment services responding to urgent one-time payments to Albertan. The Admin portal is housed with form creation, payment configurations, program setting, and service lifecycle management capabilities." },
+  { name: "Payment Management (eTransfer)", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPS",
+    objective: "Common Payments Service: A Common Payments Service consists of application programing interfaces (APIs) that enables issuing real-time eTransfer payments with complete payment audit and tracking capabilities. Enables general ledger journal posting to 1GX which streamlines end-to-end payment issuing and payment journaling processes." },
+  { name: "Berkeley Integration – Debit Card Payment Management", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPS",
+    objective: "Common Payments Service: A Common Payments Service consists of application programing interfaces (APIs) that enables issuing real-time eTransfer payments with complete payment audit and tracking capabilities. Enables general ledger journal posting to 1GX which streamlines end-to-end payment issuing and payment journaling processes." },
+  { name: "EEP readiness for the 2026 emergency season", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "" },
+  { name: "Post MVP functions for 2027 Season – (i.e. Physical Address, Ineract Bank Verification, Messaging Service, Payment Preference Options, Financial Mangement Con't )", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "CPP and CPS - post MVP" },
+  { name: "Modernization utilize Common Payments Platform - Exploration", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "Emergency Benefit Payment System (EBS) - modernization",
+    objective: "Modernize Emergency Benefit Payment System (EBS) - exploration: Enables Ministry business programs with automated end-to-end financial reconciliation, audit, and journal management capabilities which streamline financial process with audit tracking in the Payments Service Portal." },
+  { name: "Modernization Exploration and Implementation – Exploration", category: "Common Payment Platform (CPP) and Common Payment Services (CPS)", subCategory: "Emergency Registration System (ERS) - modernization",
+    objective: "Modernize Emergency Registration System (ERS) - exploration: Enables general ledger journal posting to 1GX which streamlines end-to-end payment issuing and payment journaling processes." }
+];
+
+// Same contract as the other importers.
+function applyPaymentsDeckStructure(list) {
+  const byName = new Map(PAYMENTS_DECK_PROJECTS.map(entry => [entry.name, entry]));
+  list.forEach(project => {
+    const entry = byName.get(project.name);
+    if (!entry || project.unit !== "Alberta Payments") return;
+    project.subUnit = entry.category;
+    project.subCategory = entry.subCategory;
+    if (entry.objective) project.objective = entry.objective;
+  });
+  return list;
 }
 
 // ---------------------------------------------------------------------------
@@ -1282,9 +1369,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)))))).map(normalizeProjectAlignment);
+    return applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))))))).map(normalizeProjectAlignment);
   } catch {
-    return applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)))))).map(normalizeProjectAlignment);
+    return applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))))))).map(normalizeProjectAlignment);
   }
 }
 
@@ -3436,7 +3523,7 @@ function toggleAlertPanel(force) {
 //   says who changed it.
 // ===========================================================================
 const WORKSPACE_KINDS = {
-  projects: { label: "the portfolio", apply: data => { projects = applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit)))))).map(normalizeProjectAlignment); } },
+  projects: { label: "the portfolio", apply: data => { projects = applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))))))).map(normalizeProjectAlignment); } },
   teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
   strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
   ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
