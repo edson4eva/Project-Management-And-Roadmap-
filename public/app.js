@@ -344,7 +344,7 @@ const categorySubCategories = {
   "Web Services::Learning Management System": [
     "Phase 1",
     "Phase 2 - PSES Migration",
-    "Phase 2 - Justice and JET"
+    "Phase 2 – Justice and JET"
   ],
   // The five labelled rows of the deck's eServices timelines, slides 23 and 25.
   "Alberta Payments::eServices": [
@@ -739,10 +739,18 @@ function phaseProgressRollup(phases) {
 //
 // The deck's timeline tables are stretched to fit their frames, so a bar's row
 // cannot be read from the raw row heights - the frame height has to be divided
-// across them first. Done that way every bar on this page lands inside a band
-// cleanly, and the deck's own deliverable names confirm it: the Hazard
-// Identification bar is written up as "PSES - AEMA - Hazard Identification and
-// Risk Assessment", which is the PSES Migration row it computes to.
+// across them first. That puts nine of the ten bars on this page in a band
+// cleanly, and the deck's own deliverable names corroborate one of them: the
+// Hazard Identification bar is written up as "PSES - AEMA - Hazard
+// Identification and Risk Assessment", which is the PSES Migration row it
+// computes to.
+//
+// It got the tenth wrong. "Phase 1 Improvements" computed to Phase 2 - PSES
+// Migration and belongs on the Phase 1 row with Phase 1 Migration; that
+// correction came from Edson reading the page, not from the geometry. Its bar
+// sits at the top of the tall PSES band, close to the boundary - the same place
+// the arithmetic misread a bar on slide 28 - so a bar near a band edge is worth
+// checking against the page rather than trusting.
 //
 // The deck writes a description for nine of the ten bars, each named as the
 // deck names the deliverable, with the Domain and Release it gives recorded
@@ -772,8 +780,9 @@ const LMS_DECK_PROJECTS = [
   // Slide 36, row "Phase 1"
   { name: "Phase 1 Migration", category: "Learning Management System", subCategory: "Phase 1",
     objective: "Phase 1 Migration. CFS - Learning Environment Online: enables CFS staff and contractors to complete mandatory & legislated training. This instance has been operational since late 2021. TEC - Class 1 Driver Training: enable the replacement of the Ministry's Mandatory Entry Level Training (MELT) program with a new Class 1 Leaner Pathways Program. The new LMS will provide a platform to provide an accessible learning site for the new tiered and restricted Class 1 learning pathway that will be made available to Albertans and some driving schools. MA - Firefighter Training: replace the Ministry's legacy LMS to eliminate risks associated with using unsupported software. PSES - Local Authorities Emergency Management Training. Forestry - Wildfire training (implementation delayed until Fall 2025 due to wildfire season): replace the Ministry's legacy LMS to eliminate risks associated with using unsupported software. Note, LMS solution supports FIRES operations. Petrinex Reporting portal training: Petrinex currently provides LMS support to four (4) provincial government jurisdictions and the Canadian Association of Petroleum. SARTR - Registry Agents Training: legacy platform licensing expiring in April '25, no alternative available." },
+  { name: "Phase 1 Improvements", category: "Learning Management System", subCategory: "Phase 1" },
+
   // Slide 36, row "Phase 2 - PSES Migration"
-  { name: "Phase 1 Improvements", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration" },
   { name: "Police Review Commission", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
     objective: "PSES - Police Review Commission: Implement LMS to support Ministry's current and future external client facing educational and training needs. Importance: High - Minister's priority." },
   { name: "AEMA - Public Alerting", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
@@ -786,10 +795,10 @@ const LMS_DECK_PROJECTS = [
     objective: "PSES - AEMA - Emergency Social Services: Add Enhancement business requirements to Alberta Emergency Management Agency LMS. Importance: Medium." },
   { name: "Hazard Identification and Risk", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
     objective: "PSES - AEMA - Hazard Identification and Risk Assessment: Add Hazard Identification and Risk Assessment business requirements to Alberta Emergency Management Agency LMS. Importance: Medium." },
-  // Slide 36, row "Phase 2 - Justice and JET"
-  { name: "Justice - Parenting After Separation", category: "Learning Management System", subCategory: "Phase 2 - Justice and JET",
+  // Slide 36, row "Phase 2 – Justice and JET"
+  { name: "Justice - Parenting After Separation", category: "Learning Management System", subCategory: "Phase 2 – Justice and JET",
     objective: "Justice - Parenting after Separation online training: Replace the Ministry's legacy LMS with a modern, scalable platform that meets the Ministry's current and future external client facing educational and training needs. Importance: High - Legacy platform licensing expiring." },
-  { name: "JET – Asbestos OHS", category: "Learning Management System", subCategory: "Phase 2 - Justice and JET",
+  { name: "JET – Asbestos OHS", category: "Learning Management System", subCategory: "Phase 2 – Justice and JET",
     objective: "JET - OHS Asbestos & Blasters Training Agencies portal: Replace legacy LMS to eliminate risks associated with using unsupported software, while providing a modern, scalable platform that meets the agency's current and future external client facing educational and training needs. Importance: Medium." }
 ];
 
