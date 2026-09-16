@@ -189,6 +189,7 @@ const projectUnits = ["Unified Identity and Access Management", "Alberta Wallet 
 const unitSubCategories = {
   "Unified Identity and Access Management": ["UIAM - Verification", "Strategy and Operations", "Alberta.ca Account Features", "Unified Messaging Service"],
   "Alberta Wallet and Credentials": ["Alberta Wallet"],
+  "CRA Income and Data Verification Services": ["Income Verification Service"],
   "Alberta Payments": ["eServices", "Common Payment Platform (CPP) and Common Payment Services (CPS)"],
   "Web Services": ["Learning Management System"],
   "Platforms Operations": ["Privacy Portal"]
@@ -723,6 +724,60 @@ function phaseProgressRollup(phases) {
   if (!list.length || !list.some(hasPhaseProgress)) return null;
   const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
   return Math.round(total / list.length);
+}
+
+// ---------------------------------------------------------------------------
+// CRA Data Verification Service, from the same deck, slides 32 to 34. Slide 32
+// names the section, slide 33 carries the timeline and the deliverable table,
+// slide 34 gives the initiative.
+//
+// This page has one labelled row, and its label is the page heading itself -
+// "Income Verification Service" - so the deck gives one level of nesting here,
+// not two. The projects sit under that unit with no category rather than being
+// given a category band that would repeat the unit's own name.
+//
+// The deck's deliverable table names three deliverables against four bars. Two
+// map plainly: TI / CRA MOU Development to "Student Aid / CRA MOU", and
+// End-point - GoA Program areas to "On board new programs". The third,
+// End-point - Alberta Student Aid, is released Q1/Q2 25/26, which is the window
+// "Service Development for Student Aid" runs in, so it carries that
+// description; "Student Aid Integration" runs later and the deck writes nothing
+// for it, so it keeps the objective it already had.
+// ---------------------------------------------------------------------------
+const CRA_DECK_PAGES = {
+  "Income Verification Service": {
+    slides: [32, 33, 34],
+    initiative: "CRA Data Verification Service",
+    description: "CRA Data Verification Service is provided by the ministry of Technology and Information (TI) as an enterprise service, designed to enable business programs within ministries at the Government of Alberta to verify demographic statistic (such as marital status), income, and dependent information based on Canada Revenue Agency data without exposing sensitive personal information. This supports the administration of affordability programs, subsidy programs, grants, and more. The data verification service will be delivered via a secure application programming interface (API). The use of the CRA data with this service is governed by the Memorandum of Understanding (MOU) between TI and CRA. Additionally, the use of the data is determined on a per-business program basis and is specified in the TI and CRA MOU. A MOU between TI and each business program is also required to ensure the proper use of this service and the CRA data.",
+    deliverables: {
+      "End-point - Alberta Student Aid": { domain: "New Service", release: "Q1/Q2 25/26" },
+      "TI / CRA MOU Development": { domain: "New Service", release: "Q3 25/26" },
+      "End-point - GoA Program areas": { domain: "New Service", release: "Q3/Q4 25/26, Q1 26/27" }
+    }
+  }
+};
+
+const CRA_DECK_PROJECTS = [
+  { name: "Service Development for Student Aid", category: "Income Verification Service", subCategory: "",
+    objective: "End-point - Alberta Student Aid: Develop an end-point to deliver data verification service specific to Alberta Student Aid using their existing MOU." },
+  { name: "Student Aid / CRA MOU", category: "Income Verification Service", subCategory: "",
+    objective: "TI / CRA MOU Development: Develop an overarching MOU between TI and CRA. Develop MOUs between TI and GoA Program areas to consume CRA data." },
+  { name: "On board new programs", category: "Income Verification Service", subCategory: "",
+    objective: "End-point - GoA Program areas: Onboard Program areas to consume CRA data, based on their respective MOUs." },
+  { name: "Student Aid Integration", category: "Income Verification Service", subCategory: "" }
+];
+
+// Same contract as the other importers.
+function applyCraDeckStructure(list) {
+  const byName = new Map(CRA_DECK_PROJECTS.map(entry => [entry.name, entry]));
+  list.forEach(project => {
+    const entry = byName.get(project.name);
+    if (!entry || project.unit !== "CRA Income and Data Verification Services") return;
+    project.subUnit = entry.category;
+    project.subCategory = entry.subCategory;
+    if (entry.objective) project.objective = entry.objective;
+  });
+  return list;
 }
 
 // ---------------------------------------------------------------------------
@@ -1369,9 +1424,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))))))).map(normalizeProjectAlignment);
+    return applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)))))))).map(normalizeProjectAlignment);
   } catch {
-    return applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))))))).map(normalizeProjectAlignment);
+    return applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)))))))).map(normalizeProjectAlignment);
   }
 }
 
@@ -3523,7 +3578,7 @@ function toggleAlertPanel(force) {
 //   says who changed it.
 // ===========================================================================
 const WORKSPACE_KINDS = {
-  projects: { label: "the portfolio", apply: data => { projects = applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))))))).map(normalizeProjectAlignment); } },
+  projects: { label: "the portfolio", apply: data => { projects = applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit)))))))).map(normalizeProjectAlignment); } },
   teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
   strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
   ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
