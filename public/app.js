@@ -191,7 +191,7 @@ const unitSubCategories = {
   "Alberta Wallet and Credentials": ["Alberta Wallet"],
   "CRA Income and Data Verification Services": ["Income Verification Service"],
   "Alberta Payments": ["eServices", "Common Payment Platform (CPP) and Common Payment Services (CPS)"],
-  "Web Services": ["Learning Management System"],
+  "Web Services": ["Learning Management System"],  // the deck's LMS section, slides 35 to 39
   "Platforms Operations": ["Privacy Portal"]
 };
 
@@ -339,6 +339,12 @@ const categorySubCategories = {
     "CPP and CPS - post MVP",
     "Emergency Benefit Payment System (EBS) - modernization",
     "Emergency Registration System (ERS) - modernization"
+  ],
+  // The three labelled rows of the deck's LMS timeline, slide 36.
+  "Web Services::Learning Management System": [
+    "Phase 1",
+    "Phase 2 - PSES Migration",
+    "Phase 2 - Justice and JET"
   ],
   // The five labelled rows of the deck's eServices timelines, slides 23 and 25.
   "Alberta Payments::eServices": [
@@ -724,6 +730,80 @@ function phaseProgressRollup(phases) {
   if (!list.length || !list.some(hasPhaseProgress)) return null;
   const total = list.reduce((sum, phase) => sum + (hasPhaseProgress(phase) ? Number(phase.progress) : 0), 0);
   return Math.round(total / list.length);
+}
+
+// ---------------------------------------------------------------------------
+// Learning Management System, from the same deck, slides 35 to 39. Slide 35
+// names the section, slide 36 carries the timeline with three labelled rows,
+// and slides 37 to 39 give the initiative and the per-deliverable descriptions.
+//
+// The deck's timeline tables are stretched to fit their frames, so a bar's row
+// cannot be read from the raw row heights - the frame height has to be divided
+// across them first. Done that way every bar on this page lands inside a band
+// cleanly, and the deck's own deliverable names confirm it: the Hazard
+// Identification bar is written up as "PSES - AEMA - Hazard Identification and
+// Risk Assessment", which is the PSES Migration row it computes to.
+//
+// The deck writes a description for nine of the ten bars, each named as the
+// deck names the deliverable, with the Domain and Release it gives recorded
+// below. "Phase 1 Improvements" is the one bar the deck describes nowhere, so
+// it keeps the objective it already had.
+// ---------------------------------------------------------------------------
+const LMS_DECK_PAGES = {
+  "Learning Management System": {
+    slides: [35, 36, 37, 38, 39],
+    initiative: "Learning Management System (LMS)",
+    description: "The strategic vision is to implement a new learning management system that eliminates the risks associated with using unsupported software, while providing a modern, scalable platform that meets Ministry current and future external client facing educational and training needs. The new system will offer enhanced user experience, improved accessibility, and flexible features that can adapt to evolving organizational learning requirements. The solution will be based off a common core platform but provide users with the flexibility to implement a solution that meets their respective needs.",
+    deliverables: {
+      "Phase 1 Migration": { domain: "", release: "Q1 25/26" },
+      "PSES - Police Review Commission": { domain: "Migration", release: "Q2 25/26" },
+      "Justice - Parenting after Separation online training": { domain: "Migration", release: "Q2 25/26" },
+      "PSES - AEMA - Public Alerting System": { domain: "Enhancement", release: "Q3 25/26" },
+      "PSES - AEMA - Wildland Urban Interface": { domain: "Enhancement", release: "Q3 25/26" },
+      "PSES - AEMA - Emergency Social Services": { domain: "Enhancement", release: "Q3 25/26" },
+      "PSES - AEMA - Hazard Identification and Risk Assessment": { domain: "Enhancement", release: "Q4 25/26" },
+      "PSES - Training Academy": { domain: "Migration", release: "Q3 25/26" },
+      "JET - OHS Asbestos & Blasters Training Agencies portal": { domain: "Migration", release: "Q3 25/26" }
+    }
+  }
+};
+
+const LMS_DECK_PROJECTS = [
+  // Slide 36, row "Phase 1"
+  { name: "Phase 1 Migration", category: "Learning Management System", subCategory: "Phase 1",
+    objective: "Phase 1 Migration. CFS - Learning Environment Online: enables CFS staff and contractors to complete mandatory & legislated training. This instance has been operational since late 2021. TEC - Class 1 Driver Training: enable the replacement of the Ministry's Mandatory Entry Level Training (MELT) program with a new Class 1 Leaner Pathways Program. The new LMS will provide a platform to provide an accessible learning site for the new tiered and restricted Class 1 learning pathway that will be made available to Albertans and some driving schools. MA - Firefighter Training: replace the Ministry's legacy LMS to eliminate risks associated with using unsupported software. PSES - Local Authorities Emergency Management Training. Forestry - Wildfire training (implementation delayed until Fall 2025 due to wildfire season): replace the Ministry's legacy LMS to eliminate risks associated with using unsupported software. Note, LMS solution supports FIRES operations. Petrinex Reporting portal training: Petrinex currently provides LMS support to four (4) provincial government jurisdictions and the Canadian Association of Petroleum. SARTR - Registry Agents Training: legacy platform licensing expiring in April '25, no alternative available." },
+  // Slide 36, row "Phase 2 - PSES Migration"
+  { name: "Phase 1 Improvements", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration" },
+  { name: "Police Review Commission", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
+    objective: "PSES - Police Review Commission: Implement LMS to support Ministry's current and future external client facing educational and training needs. Importance: High - Minister's priority." },
+  { name: "AEMA - Public Alerting", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
+    objective: "PSES - AEMA - Public Alerting System: Add Public Alerting business requirements to Alberta Emergency Management Agency LMS. Importance: Medium." },
+  { name: "Training Academy", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
+    objective: "PSES - Training Academy: Replace legacy LMS to eliminate risks associated with using unsupported software, while providing a modern, scalable platform that meets the agency's current and future external client facing educational and training needs. Importance: Medium." },
+  { name: "AEMA - Wildland Urban Interface", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
+    objective: "PSES - AEMA - Wildland Urban Interface: Add Wildland Urban Interface business requirements to Alberta Emergency Management Agency LMS. Importance: Medium." },
+  { name: "AEMA - Emergency Social Services", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
+    objective: "PSES - AEMA - Emergency Social Services: Add Enhancement business requirements to Alberta Emergency Management Agency LMS. Importance: Medium." },
+  { name: "Hazard Identification and Risk", category: "Learning Management System", subCategory: "Phase 2 - PSES Migration",
+    objective: "PSES - AEMA - Hazard Identification and Risk Assessment: Add Hazard Identification and Risk Assessment business requirements to Alberta Emergency Management Agency LMS. Importance: Medium." },
+  // Slide 36, row "Phase 2 - Justice and JET"
+  { name: "Justice - Parenting After Separation", category: "Learning Management System", subCategory: "Phase 2 - Justice and JET",
+    objective: "Justice - Parenting after Separation online training: Replace the Ministry's legacy LMS with a modern, scalable platform that meets the Ministry's current and future external client facing educational and training needs. Importance: High - Legacy platform licensing expiring." },
+  { name: "JET – Asbestos OHS", category: "Learning Management System", subCategory: "Phase 2 - Justice and JET",
+    objective: "JET - OHS Asbestos & Blasters Training Agencies portal: Replace legacy LMS to eliminate risks associated with using unsupported software, while providing a modern, scalable platform that meets the agency's current and future external client facing educational and training needs. Importance: Medium." }
+];
+
+// Same contract as the other importers.
+function applyLmsDeckStructure(list) {
+  const byName = new Map(LMS_DECK_PROJECTS.map(entry => [entry.name, entry]));
+  list.forEach(project => {
+    const entry = byName.get(project.name);
+    if (!entry || project.unit !== "Web Services") return;
+    project.subUnit = entry.category;
+    project.subCategory = entry.subCategory;
+    if (entry.objective) project.objective = entry.objective;
+  });
+  return list;
 }
 
 // ---------------------------------------------------------------------------
@@ -1424,9 +1504,9 @@ function consolidatePrivacyPortal(list) {
 function loadProjects() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE.projects));
-    return applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit)))))))).map(normalizeProjectAlignment);
+    return applyLmsDeckStructure(applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal((Array.isArray(saved) ? saved : seedProjects).map(normalizeProjectUnit))))))))).map(normalizeProjectAlignment);
   } catch {
-    return applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit)))))))).map(normalizeProjectAlignment);
+    return applyLmsDeckStructure(applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(seedProjects.map(normalizeProjectUnit))))))))).map(normalizeProjectAlignment);
   }
 }
 
@@ -3578,7 +3658,7 @@ function toggleAlertPanel(force) {
 //   says who changed it.
 // ===========================================================================
 const WORKSPACE_KINDS = {
-  projects: { label: "the portfolio", apply: data => { projects = applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit)))))))).map(normalizeProjectAlignment); } },
+  projects: { label: "the portfolio", apply: data => { projects = applyLmsDeckStructure(applyCraDeckStructure(applyPaymentsDeckStructure(applyEservicesDeckStructure(applyWalletDeckStructure(applyUiamDeckStructure(consolidateUnifiedMessaging(consolidatePrivacyPortal(data.map(normalizeProjectUnit))))))))).map(normalizeProjectAlignment); } },
   teams: { label: "the team directory", apply: data => { teamDirectory = data.map(normalizeTeamRoles); } },
   strategy: { label: "the roadmap strategy", apply: data => { roadmapStrategy = data; } },
   ideas: { label: "the idea board", apply: data => { ideas = data.map(normalizeIdea); } },
